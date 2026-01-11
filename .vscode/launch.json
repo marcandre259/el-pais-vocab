@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Add Article",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "add",
+                "https://elpais.com/internacional/2026-01-11/trump-quiere-imponer-su-ley.html",
+                "--prompt",
+                "pick 20 common useful words including verbs and nouns",
+                "--count",
+                "20",
+                "--browser",
+                "firefox"
+            ]
+        }
+    ]
+}

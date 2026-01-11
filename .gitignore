@@ -1,0 +1,6 @@
+.env
+vocab.db
+audio/
+*.csv
+__pycache__/
+*.pyc
