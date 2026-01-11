@@ -12,7 +12,7 @@
                 "add",
                 "https://elpais.com/internacional/2026-01-11/maduro-se-enfrenta-a-un-calvario-judicial-mientras-espera-en-la-carcel-conocida-como-el-infierno-en-la-tierra.html",
                 "--prompt",
-                "pick common useful words including verbs and nouns",
+                "I am absolute beginner at spanish, pick very common useful words including verbs and nouns",
                 "--count",
                 "100",
                 "--browser",
