@@ -10,11 +10,11 @@
             "python": "${workspaceFolder}/.venv/bin/python",
             "args": [
                 "add",
-                "https://elpais.com/internacional/2026-01-11/trump-quiere-imponer-su-ley.html",
+                "https://elpais.com/internacional/2026-01-11/maduro-se-enfrenta-a-un-calvario-judicial-mientras-espera-en-la-carcel-conocida-como-el-infierno-en-la-tierra.html",
                 "--prompt",
-                "pick 20 common useful words including verbs and nouns",
+                "pick common useful words including verbs and nouns",
                 "--count",
-                "20",
+                "100",
                 "--browser",
                 "firefox"
             ]

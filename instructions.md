@@ -8,14 +8,15 @@ A CLI tool to extract Spanish vocabulary from El País articles, translate to Fr
 
 All core features have been implemented and are functional:
 
-| Module       | Status     | Description                                                                              |
-| ------------ | ---------- | ---------------------------------------------------------------------------------------- |
-| `main.py`    | ✅ Complete | CLI with argparse: `add`, `list`, `export`, `audio`, `stats` commands                    |
-| `scraper.py` | ✅ Complete | Fetches El País articles with browser cookie support for paywall bypass                  |
-| `llm.py`     | ✅ Complete | Claude Haiku integration (`claude-haiku-4-5-20251001`) with JSON parsing and retry logic |
-| `db.py`      | ✅ Complete | SQLite operations: init, add/update words, get lemmas, stats                             |
-| `audio.py`   | ✅ Complete | gTTS pronunciation generation with rate limiting                                         |
-| `export.py`  | ✅ Complete | Anki-compatible CSV export with audio file references                                    |
+| Module         | Status     | Description                                                                              |
+| -------------- | ---------- | ---------------------------------------------------------------------------------------- |
+| `main.py`      | ✅ Complete | CLI with argparse: `add`, `list`, `export`, `audio`, `stats`, `sync` commands            |
+| `scraper.py`   | ✅ Complete | Fetches El País articles with browser cookie support for paywall bypass                  |
+| `llm.py`       | ✅ Complete | Claude Haiku integration (`claude-haiku-4-5-20251001`) with JSON parsing and retry logic |
+| `db.py`        | ✅ Complete | SQLite operations: init, add/update words, get lemmas, stats                             |
+| `audio.py`     | ✅ Complete | gTTS pronunciation generation with rate limiting                                         |
+| `export.py`    | ✅ Complete | Anki-compatible CSV export with audio file references (fallback method)                  |
+| `anki_sync.py` | ✅ Complete | Direct Anki sync via AnkiConnect API with automatic note type creation                   |
 
 ### Key Implementation Details
 
@@ -82,7 +83,10 @@ python main.py add <url> --prompt "pick 30 words, focus on political terms" --co
 # List known words
 python main.py list [--limit 50]
 
-# Export to Anki CSV
+# Sync to Anki (via AnkiConnect) - RECOMMENDED
+python main.py sync [--deck el-pais] [--db vocab.db] [--audio-dir audio]
+
+# Export to Anki CSV (fallback method)
 python main.py export [--output vocab.csv]
 
 # Generate/regenerate audio for all words

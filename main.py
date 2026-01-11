@@ -8,6 +8,7 @@ import scraper
 import llm
 import audio
 import export
+import anki_sync
 
 
 def cmd_add(args):
@@ -111,6 +112,28 @@ def cmd_stats(args):
         print(f"\nAudio files: {len(audio_files)}")
 
 
+def cmd_sync(args):
+    """Sync vocabulary to Anki deck via AnkiConnect."""
+    try:
+        stats = anki_sync.sync_to_anki(
+            db_path=args.db,
+            audio_dir=args.audio_dir,
+            deck_name=args.deck
+        )
+
+        print(f"\nSync complete!")
+        print(f"  Added: {stats['added']}")
+        print(f"  Skipped (already exist): {stats['skipped']}")
+        print(f"  Failed: {stats['failed']}")
+
+    except ConnectionError as e:
+        print(f"\n{e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error syncing: {e}")
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="El País Vocabulary Builder - Extract Spanish vocabulary from articles",
@@ -145,6 +168,15 @@ def main():
 
     stats_parser = subparsers.add_parser('stats', help='Show statistics')
     stats_parser.set_defaults(func=cmd_stats)
+
+    sync_parser = subparsers.add_parser('sync', help='Sync vocabulary to Anki deck')
+    sync_parser.add_argument('--deck', default='el-pais',
+                            help='Anki deck name (default: el-pais)')
+    sync_parser.add_argument('--db', default='vocab.db',
+                            help='Database path (default: vocab.db)')
+    sync_parser.add_argument('--audio-dir', default='audio',
+                            help='Audio directory (default: audio)')
+    sync_parser.set_defaults(func=cmd_sync)
 
     args = parser.parse_args()
 
