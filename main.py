@@ -3,12 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-import db
-import scraper
-import llm
-import audio
-import export
-import anki_sync
+from core import db, scraper, llm, audio, export, anki_sync
 
 
 def cmd_add(args):

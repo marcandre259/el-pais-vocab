@@ -3,7 +3,7 @@ import base64
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional
-import db
+from core import db
 
 
 ANKICONNECT_URL = "http://localhost:8765"

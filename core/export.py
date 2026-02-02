@@ -2,7 +2,7 @@ import csv
 import json
 from pathlib import Path
 from typing import List, Dict
-import db
+from core import db
 
 
 def export_csv(output_path: str = "vocab.csv", db_path: str = "vocab.db", audio_dir: str = "audio") -> int:
