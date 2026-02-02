@@ -51,8 +51,15 @@ Then run commands:
 # Add vocabulary from an article
 python main.py add <url> --browser firefox
 
+# Create themed vocabulary (any language pair!)
+python main.py theme "cooking vocabulary" --source Dutch --target English --count 20
+
+# List all themes
+python main.py theme --list
+
 # Sync to Anki (REQUIRES ANKI RUNNING)
-python main.py sync
+python main.py sync          # sync main vocabulary only
+python main.py sync --all    # sync all tables (main + themes)
 
 # List known words
 python main.py list
@@ -66,6 +73,30 @@ python main.py audio
 # Export to CSV (fallback method)
 python main.py export
 ```
+
+## Themed Vocabulary
+
+Create vocabulary lists for any language pair and theme:
+
+```bash
+# Dutch words for active recall
+python main.py theme "active recall nouns" --source Dutch --target English --count 20
+
+# Spanish cooking vocabulary
+python main.py theme "cooking vocabulary" --source Spanish --target French --count 20
+
+# List all themes
+python main.py theme --list
+
+# The LLM will detect related themes and offer to merge
+python main.py theme "kitchen utensils" --source Dutch --target English
+# -> "Found related theme: active recall nouns. Add to existing? [Y/n]"
+
+# Force create new theme even if related one exists
+python main.py theme "kitchen items" --source Dutch --target English --force-new
+```
+
+Each theme gets its own database table and Anki deck.
 
 ## Common Issues
 
@@ -115,13 +146,16 @@ el-pais-vocab/
 # 1. Activate environment
 source .venv/bin/activate
 
-# 2. Add vocabulary from article
+# 2a. Add vocabulary from article (Spanish-French)
 python main.py add "https://elpais.com/..." --browser firefox
+
+# 2b. Or create themed vocabulary (any language)
+python main.py theme "common verbs" --source Dutch --target English --count 20
 
 # 3. Open Anki desktop app
 
 # 4. Sync to Anki
-python main.py sync
+python main.py sync --all    # sync everything
 ```
 
 ## Documentation

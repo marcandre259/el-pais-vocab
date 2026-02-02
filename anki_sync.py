@@ -345,3 +345,174 @@ def sync_to_anki(
             stats['failed'] += 1
 
     return stats
+
+
+# ============ Theme Sync Functions ============
+
+
+def create_theme_note(word: dict, deck_name: str, audio_dir: str = "audio", tags: Optional[List[str]] = None) -> bool:
+    """
+    Create a note for a themed vocabulary word.
+
+    Args:
+        word: Dictionary with word data from theme table (uses 'translation' instead of 'french')
+        deck_name: Name of the deck to add note to
+        audio_dir: Directory containing audio files
+        tags: Optional list of tags for the note
+
+    Returns:
+        True if note created successfully, False otherwise
+    """
+    lemma = word['lemma']
+
+    # Parse examples from JSON if needed
+    examples = word.get('examples', [])
+    if isinstance(examples, str):
+        try:
+            examples = json.loads(examples)
+        except json.JSONDecodeError:
+            examples = []
+
+    # Prepare fields (note: themed tables use 'translation' instead of 'french')
+    fields = {
+        "Lemma": lemma,
+        "French": word.get('translation', word.get('french', '')),  # Support both field names
+        "PartOfSpeech": word.get('pos', ''),
+        "WordAsFound": word.get('word', lemma),
+        "Example1": examples[0] if len(examples) > 0 else "",
+        "Example2": examples[1] if len(examples) > 1 else "",
+        "Audio": upload_audio(lemma, audio_dir),
+        "SourceURL": word.get('source_url', '')
+    }
+
+    note = {
+        "deckName": deck_name,
+        "modelName": MODEL_NAME,
+        "fields": fields,
+        "options": {
+            "allowDuplicate": False
+        },
+        "tags": tags or ["themed-vocab"]
+    }
+
+    try:
+        _invoke_anki("addNote", note=note)
+        return True
+    except Exception as e:
+        print(f"Error creating note for '{lemma}': {e}")
+        return False
+
+
+def sync_theme_to_anki(
+    table_name: str,
+    deck_name: str,
+    db_path: str = "vocab.db",
+    audio_dir: str = "audio"
+) -> Dict[str, int]:
+    """
+    Sync a specific themed vocabulary table to its Anki deck.
+
+    Args:
+        table_name: Name of the theme table in database
+        deck_name: Name of the Anki deck
+        db_path: Path to SQLite database
+        audio_dir: Directory containing audio files
+
+    Returns:
+        Dictionary with sync statistics: {'added': int, 'skipped': int, 'failed': int}
+    """
+    # Ensure deck and note type exist
+    ensure_deck_exists(deck_name)
+    ensure_note_type_exists()
+
+    # Get all words from theme table
+    words = db.get_all_words_from_theme(table_name, db_path)
+
+    if not words:
+        return {'added': 0, 'skipped': 0, 'failed': 0}
+
+    # Sync each word
+    stats = {'added': 0, 'skipped': 0, 'failed': 0}
+    tags = ["themed-vocab", f"theme-{table_name}"]
+
+    for word in words:
+        lemma = word['lemma']
+
+        # Check if note already exists
+        if note_exists(lemma, deck_name):
+            stats['skipped'] += 1
+            continue
+
+        # Create new note
+        if create_theme_note(word, deck_name, audio_dir, tags):
+            stats['added'] += 1
+            print(f"  Added: {lemma}")
+        else:
+            stats['failed'] += 1
+
+    return stats
+
+
+def sync_all_themes(
+    db_path: str = "vocab.db",
+    audio_dir: str = "audio",
+    include_main: bool = True
+) -> Dict[str, Dict[str, int]]:
+    """
+    Sync all themed vocabulary tables to their respective Anki decks.
+
+    Args:
+        db_path: Path to SQLite database
+        audio_dir: Directory containing audio files
+        include_main: Whether to also sync the main vocabulary table
+
+    Returns:
+        Dictionary mapping deck names to their sync statistics
+    """
+    # Check connection first
+    if not check_connection():
+        raise ConnectionError(
+            "Cannot connect to AnkiConnect.\n\n"
+            "First-time setup:\n"
+            "1. Open Anki desktop app\n"
+            "2. Go to Tools → Add-ons → Get Add-ons\n"
+            "3. Enter code: 2055492159\n"
+            "4. Restart Anki\n"
+            "5. Run sync again\n\n"
+            "More info: https://ankiweb.net/shared/info/2055492159"
+        )
+
+    results = {}
+
+    # Sync main vocabulary table if requested
+    if include_main:
+        print("\nSyncing main vocabulary (el-pais)...")
+        try:
+            words = db.get_all_words(db_path)
+            if words:
+                results["el-pais"] = sync_to_anki(db_path, audio_dir, "el-pais")
+            else:
+                results["el-pais"] = {'added': 0, 'skipped': 0, 'failed': 0}
+        except Exception as e:
+            print(f"Error syncing main vocabulary: {e}")
+            results["el-pais"] = {'added': 0, 'skipped': 0, 'failed': 0, 'error': str(e)}
+
+    # Get all themes and sync each
+    themes = db.get_all_themes(db_path)
+
+    for theme in themes:
+        table_name = theme['table_name']
+        deck_name = theme['deck_name']
+        source_lang = theme['source_lang']
+        target_lang = theme['target_lang']
+
+        print(f"\nSyncing {deck_name} ({source_lang} -> {target_lang})...")
+
+        try:
+            stats = sync_theme_to_anki(table_name, deck_name, db_path, audio_dir)
+            results[deck_name] = stats
+        except Exception as e:
+            print(f"Error syncing {deck_name}: {e}")
+            results[deck_name] = {'added': 0, 'skipped': 0, 'failed': 0, 'error': str(e)}
+
+    return results

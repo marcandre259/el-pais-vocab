@@ -2,6 +2,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python"
+        },
+        {
             "name": "Python: Add Article",
             "type": "debugpy",
             "request": "launch",
@@ -10,13 +18,24 @@
             "python": "${workspaceFolder}/.venv/bin/python",
             "args": [
                 "add",
-                "https://elpais.com/internacional/2026-01-11/maduro-se-enfrenta-a-un-calvario-judicial-mientras-espera-en-la-carcel-conocida-como-el-infierno-en-la-tierra.html",
+                "https://elpais.com/economia/2026-01-27/claves-del-pacto-comercial-entre-la-ue-y-la-india-intercambios-libres-para-el-aceite-y-rebaja-de-aranceles-a-los-coches.html",
                 "--prompt",
-                "I am absolute beginner at spanish, pick very common useful words including verbs and nouns",
+                "I am absolute beginner at spanish, pick very common useful words",
                 "--count",
-                "100",
+                "20",
                 "--browser",
                 "firefox"
+            ]
+        },
+        {
+            "name": "Python: Sync to Anki",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "sync",
             ]
         }
     ]

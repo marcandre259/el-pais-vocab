@@ -4,3 +4,4 @@ audio/
 *.csv
 __pycache__/
 *.pyc
+data/

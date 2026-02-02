@@ -10,13 +10,13 @@ All core features have been implemented and are functional:
 
 | Module         | Status     | Description                                                                              |
 | -------------- | ---------- | ---------------------------------------------------------------------------------------- |
-| `main.py`      | ✅ Complete | CLI with argparse: `add`, `list`, `export`, `audio`, `stats`, `sync` commands            |
+| `main.py`      | ✅ Complete | CLI with argparse: `add`, `list`, `export`, `audio`, `stats`, `sync`, `theme` commands   |
 | `scraper.py`   | ✅ Complete | Fetches El País articles with browser cookie support for paywall bypass                  |
-| `llm.py`       | ✅ Complete | Claude Haiku integration (`claude-haiku-4-5-20251001`) with JSON parsing and retry logic |
-| `db.py`        | ✅ Complete | SQLite operations: init, add/update words, get lemmas, stats                             |
+| `llm.py`       | ✅ Complete | Claude Haiku integration with JSON parsing, retry logic, and tool use for themes         |
+| `db.py`        | ✅ Complete | SQLite operations: init, add/update words, get lemmas, stats, theme registry             |
 | `audio.py`     | ✅ Complete | gTTS pronunciation generation with rate limiting                                         |
 | `export.py`    | ✅ Complete | Anki-compatible CSV export with audio file references (fallback method)                  |
-| `anki_sync.py` | ✅ Complete | Direct Anki sync via AnkiConnect API with automatic note type creation                   |
+| `anki_sync.py` | ✅ Complete | Direct Anki sync via AnkiConnect API with multi-table support                            |
 
 ### Key Implementation Details
 
@@ -45,6 +45,14 @@ el-pais-vocab/
 └── .env             # ANTHROPIC_API_KEY
 ```
 
+## Setup
+
+**Always activate the virtual environment before running commands:**
+
+```bash
+source .venv/bin/activate
+```
+
 ## Dependencies
 
 ```
@@ -57,6 +65,8 @@ gtts               # Google Text-to-Speech for pronunciation audio
 ```
 
 ## Database Schema
+
+### Main Vocabulary Table (Spanish-French from articles)
 
 ```sql
 CREATE TABLE IF NOT EXISTS vocabulary (
@@ -74,6 +84,40 @@ CREATE TABLE IF NOT EXISTS vocabulary (
 
 When a duplicate word is encountered, UPDATE the existing row to append new examples (keep up to 5 examples max).
 
+### Theme Registry Table
+
+Tracks all themed vocabulary tables:
+
+```sql
+CREATE TABLE IF NOT EXISTS theme_registry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    table_name TEXT NOT NULL UNIQUE,    -- e.g., "vocab_cooking_vocabulary"
+    theme_description TEXT NOT NULL,    -- original user prompt
+    source_lang TEXT NOT NULL,          -- e.g., "Dutch", "Spanish"
+    target_lang TEXT NOT NULL,          -- e.g., "English", "French"
+    deck_name TEXT NOT NULL,            -- Anki deck name
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    word_count INTEGER DEFAULT 0        -- cached count
+);
+```
+
+### Themed Vocabulary Tables
+
+Each theme gets its own table with identical structure:
+
+```sql
+CREATE TABLE IF NOT EXISTS vocab_{theme_name} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    word TEXT NOT NULL,
+    lemma TEXT NOT NULL,
+    pos TEXT,
+    translation TEXT NOT NULL,    -- target language translation
+    examples TEXT,                -- JSON array of example sentences
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lemma)
+);
+```
+
 ## CLI Interface
 
 ```bash
@@ -83,8 +127,16 @@ python main.py add <url> --prompt "pick 30 words, focus on political terms" --co
 # List known words
 python main.py list [--limit 50]
 
+# Create themed vocabulary (any language pair)
+python main.py theme "cooking vocabulary" --source Dutch --target English --count 20
+
+# List all themes
+python main.py theme --list
+
 # Sync to Anki (via AnkiConnect) - RECOMMENDED
 python main.py sync [--deck el-pais] [--db vocab.db] [--audio-dir audio]
+python main.py sync --all                    # Sync all tables (main + themes)
+python main.py sync --theme vocab_cooking    # Sync specific theme only
 
 # Export to Anki CSV (fallback method)
 python main.py export [--output vocab.csv]
@@ -102,6 +154,11 @@ python main.py stats
 - `--count`: number of words to extract (default: 30)
 - `--prompt`: instructions for word selection
 - `--output`: export filename (default: vocab.csv)
+- `--source`: source language for themed vocabulary
+- `--target`: target language for themed vocabulary
+- `--force-new`: create new theme even if related one exists
+- `--all`: sync all tables (main + all themes)
+- `--theme`: sync specific theme table only
 
 ## Scraper (scraper.py)
 
@@ -213,6 +270,73 @@ Select {count} vocabulary words. Return JSON array only.
 - Set `max_tokens` appropriately (~2000 for 50 words)
 - Parse JSON response, handle potential formatting issues
 - If response isn't valid JSON, retry once or raise clear error
+
+## Themed Vocabulary Generation (llm.py)
+
+Generate vocabulary for any language pair based on a theme prompt.
+
+### Function Signature
+
+```python
+def generate_themed_vocabulary(
+    theme_prompt: str,
+    source_lang: str,
+    target_lang: str,
+    known_words: List[str],
+    count: int,
+    get_all_themes_func,
+    search_theme_words_func,
+) -> List[Dict]:
+```
+
+### Tool Use
+
+The LLM has access to tools to look up existing vocabulary:
+
+```python
+tools = [
+    {
+        "name": "lookup_theme_words",
+        "description": "Look up existing vocabulary words in a theme table",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "table_name": {"type": "string"},
+                "search_term": {"type": "string"}  # optional filter
+            },
+            "required": ["table_name"]
+        }
+    },
+    {
+        "name": "list_themes",
+        "description": "List all available theme tables with descriptions and language pairs",
+        "input_schema": {"type": "object", "properties": {}}
+    }
+]
+```
+
+This allows the LLM to:
+- Check for duplicates across related themes
+- Ensure consistency with existing vocabulary
+- Find gaps in related themes
+
+### Related Theme Detection
+
+```python
+def detect_related_theme(
+    new_theme: str,
+    source_lang: str,
+    target_lang: str,
+    existing_themes: List[Dict],
+) -> Dict | None:
+```
+
+Uses LLM to semantically match themes. For example:
+- "kitchen utensils" matches "cooking vocabulary"
+- "tapas vocabulary" matches "Spanish food"
+- "business emails" matches "office vocabulary"
+
+Only matches themes with the same language pair.
 
 ## Database Operations (db.py)
 
@@ -329,6 +453,8 @@ Requires `ANTHROPIC_API_KEY` in environment or `.env` file.
 
 ## Example Session
 
+### Article-based vocabulary (Spanish-French)
+
 ```bash
 $ python main.py add "https://elpais.com/internacional/2026-01-11/trump-quiere-imponer-su-ley.html" --prompt "pick words including common verbs and political vocabulary" --count 40 --browser firefox
 
@@ -339,21 +465,75 @@ Asking Claude to select 40 new words...
 Added 40 words (38 new, 2 updated with examples)
 Generating audio pronunciations...
 Generated 38 new audio files
+```
 
+### Themed vocabulary (any language)
+
+```bash
+$ python main.py theme "cooking vocabulary" --source Dutch --target English --count 20
+
+Checking for related themes (Dutch -> English)...
+No related themes found.
+
+Creating new theme: vocab_cooking_vocabulary
+Generating 20 Dutch vocabulary words...
+
+Generated 20 words:
+  - koken (verb): to cook
+  - pan (noun): pan
+  - snijden (verb): to cut
+  ... and 17 more
+
+Generating audio pronunciations...
+Theme created! (20 words, deck: Cooking-Vocabulary)
+
+$ python main.py theme --list
+
+Themed vocabularies (1 themes):
+
+  cooking vocabulary
+    Table: vocab_cooking_vocabulary
+    Languages: Dutch -> English
+    Words: 20
+    Deck: Cooking-Vocabulary
+```
+
+### Syncing everything
+
+```bash
+$ python main.py sync --all
+
+Syncing main vocabulary (el-pais)...
+  Added: 5, Skipped: 189
+
+Syncing Cooking-Vocabulary (Dutch -> English)...
+  Added: 20, Skipped: 0
+
+==================================================
+Sync complete!
+==================================================
+
+Total: 25 added, 189 skipped, 0 failed
+```
+
+### Stats
+
+```bash
 $ python main.py stats
 Total vocabulary: 194 words
 By type: verb (67), noun (89), adjective (23), other (15)
-Audio files: 194
-
-$ python main.py export --output spanish_vocab.csv
-Exported 194 words to spanish_vocab.csv
-Audio files in: audio/
-Copy audio/ contents to Anki media folder before importing CSV
+Audio files: 214
 ```
+
+## Recent Enhancements
+
+- **Themed Vocabulary**: Create vocabulary lists for any language pair (Dutch-English, Spanish-French, etc.)
+- **Multi-Table Sync**: Sync all themed tables to separate Anki decks with `sync --all`
+- **Related Theme Detection**: LLM detects semantically related themes and offers to merge
+- **LLM Tool Use**: Themed vocabulary generation uses tools to look up existing words
 
 ## Future Enhancements (not for initial build)
 
 - Spaced repetition metadata (ease, interval)
-- Direct Anki integration via AnkiConnect
 - Web UI
 - Multiple source support (other Spanish news sites)
