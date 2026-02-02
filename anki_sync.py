@@ -7,7 +7,7 @@ import db
 
 
 ANKICONNECT_URL = "http://localhost:8765"
-MODEL_NAME = "Spanish-French Vocabulary"
+MODEL_NAME = "Language Vocabulary"
 
 
 def _invoke_anki(action: str, **params) -> dict:
@@ -90,13 +90,13 @@ def ensure_note_type_exists() -> None:
         "modelName": MODEL_NAME,
         "inOrderFields": [
             "Lemma",
-            "French",
+            "Translation",
             "PartOfSpeech",
             "WordAsFound",
             "Example1",
             "Example2",
             "Audio",
-            "SourceURL"
+            "Source"
         ],
         "css": """
 .card {
@@ -107,7 +107,7 @@ def ensure_note_type_exists() -> None:
     background-color: white;
 }
 
-.spanish {
+.word {
     font-size: 32px;
     font-weight: bold;
     color: #2c3e50;
@@ -121,7 +121,7 @@ def ensure_note_type_exists() -> None:
     margin-bottom: 15px;
 }
 
-.french {
+.translation {
     font-size: 24px;
     color: #2980b9;
     margin-bottom: 15px;
@@ -150,15 +150,15 @@ def ensure_note_type_exists() -> None:
 """,
         "cardTemplates": [
             {
-                "Name": "Spanish to French",
-                "Front": """<div class="spanish">{{Lemma}}</div>
+                "Name": "Source to Target",
+                "Front": """<div class="word">{{Lemma}}</div>
 <div class="pos">({{PartOfSpeech}})</div>
 {{Audio}}""",
                 "Back": """{{FrontSide}}
 <hr id="answer">
-<div class="french">{{French}}</div>
+<div class="translation">{{Translation}}</div>
 {{#WordAsFound}}
-<div class="context">Form in article: <i>{{WordAsFound}}</i></div>
+<div class="context">Form found: <i>{{WordAsFound}}</i></div>
 {{/WordAsFound}}
 {{#Example1}}
 <div class="example">• {{Example1}}</div>
@@ -166,9 +166,9 @@ def ensure_note_type_exists() -> None:
 {{#Example2}}
 <div class="example">• {{Example2}}</div>
 {{/Example2}}
-{{#SourceURL}}
-<div class="source">Source: El País</div>
-{{/SourceURL}}"""
+{{#Source}}
+<div class="source">Source: {{Source}}</div>
+{{/Source}}"""
             }
         ]
     }
@@ -229,7 +229,9 @@ def upload_audio(lemma: str, audio_dir: str = "audio") -> str:
         return ""
 
 
-def create_note(word: dict, deck_name: str, audio_dir: str = "audio") -> bool:
+def create_note(
+    word: dict, deck_name: str, audio_dir: str = "audio", tags: Optional[List[str]] = None
+) -> bool:
     """
     Create a single note in Anki.
 
@@ -237,6 +239,7 @@ def create_note(word: dict, deck_name: str, audio_dir: str = "audio") -> bool:
         word: Dictionary with word data from database
         deck_name: Name of the deck to add note to
         audio_dir: Directory containing audio files
+        tags: Optional list of tags for the note
 
     Returns:
         True if note created successfully, False otherwise
@@ -251,17 +254,24 @@ def create_note(word: dict, deck_name: str, audio_dir: str = "audio") -> bool:
         except json.JSONDecodeError:
             examples = []
 
-    # Prepare fields
+    # Prepare fields - support both old and new field names for backwards compatibility
     fields = {
         "Lemma": lemma,
-        "French": word['french'],
+        "Translation": word.get('translation', word.get('french', '')),
         "PartOfSpeech": word.get('pos', ''),
-        "WordAsFound": word['word'],
+        "WordAsFound": word.get('word', lemma),
         "Example1": examples[0] if len(examples) > 0 else "",
         "Example2": examples[1] if len(examples) > 1 else "",
         "Audio": upload_audio(lemma, audio_dir),
-        "SourceURL": word.get('source_url', '')
+        "Source": word.get('source', word.get('source_url', ''))
     }
+
+    # Build tags from word metadata
+    default_tags = []
+    if word.get('theme'):
+        default_tags.append(f"theme-{word['theme']}")
+    if word.get('source_lang'):
+        default_tags.append(f"lang-{word['source_lang'].lower()}")
 
     note = {
         "deckName": deck_name,
@@ -270,7 +280,7 @@ def create_note(word: dict, deck_name: str, audio_dir: str = "audio") -> bool:
         "options": {
             "allowDuplicate": False
         },
-        "tags": ["el-pais"]
+        "tags": tags or default_tags or ["vocabulary"]
     }
 
     try:
@@ -355,7 +365,7 @@ def create_theme_note(word: dict, deck_name: str, audio_dir: str = "audio", tags
     Create a note for a themed vocabulary word.
 
     Args:
-        word: Dictionary with word data from theme table (uses 'translation' instead of 'french')
+        word: Dictionary with word data from theme table
         deck_name: Name of the deck to add note to
         audio_dir: Directory containing audio files
         tags: Optional list of tags for the note
@@ -373,16 +383,16 @@ def create_theme_note(word: dict, deck_name: str, audio_dir: str = "audio", tags
         except json.JSONDecodeError:
             examples = []
 
-    # Prepare fields (note: themed tables use 'translation' instead of 'french')
+    # Prepare fields - support both old and new field names
     fields = {
         "Lemma": lemma,
-        "French": word.get('translation', word.get('french', '')),  # Support both field names
+        "Translation": word.get('translation', word.get('french', '')),
         "PartOfSpeech": word.get('pos', ''),
         "WordAsFound": word.get('word', lemma),
         "Example1": examples[0] if len(examples) > 0 else "",
         "Example2": examples[1] if len(examples) > 1 else "",
         "Audio": upload_audio(lemma, audio_dir),
-        "SourceURL": word.get('source_url', '')
+        "Source": word.get('source', word.get('source_url', ''))
     }
 
     note = {
