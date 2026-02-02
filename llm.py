@@ -25,9 +25,9 @@ class SelectTranslateOutput(BaseModel):
     gender: Optional[str] = Field(
         default=None, description="Gender or Pronoun, gives context as to usage"
     )
-    example: Optional[str] = Field(
+    examples: Optional[List[str]] = Field(
         default=None,
-        description="Example where the word is used in the source language",
+        description="1-2 example sentences where the word is used in the source language",
     )
 
 
@@ -333,6 +333,67 @@ First, use the list_themes tool to see if there are related themes you should ch
             raise RuntimeError(f"Claude API error: {e}")
 
     raise RuntimeError("Max tool use iterations reached")
+
+
+def pick_word_by_prompt(words: List[Dict], prompt: str) -> Dict:
+    """
+    Use LLM to pick a word from the vocabulary based on a semantic prompt.
+
+    Args:
+        words: List of vocabulary dictionaries
+        prompt: User's semantic search query
+
+    Returns:
+        The selected word dictionary
+
+    Raises:
+        ValueError: If no word is selected or API error occurs
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not found in environment")
+
+    client = Anthropic(api_key=api_key)
+
+    # Create a simplified list of words for the LLM
+    word_list = []
+    for i, w in enumerate(words):
+        translation = w.get("translation", w.get("french", ""))
+        word_list.append(f"{i}: {w['lemma']} ({w.get('pos', '?')}) - {translation}")
+
+    words_str = "\n".join(word_list)
+
+    system_prompt = """You are a vocabulary assistant. Given a list of vocabulary words and a semantic query, select the single best matching word.
+
+Return ONLY the index number (0, 1, 2, etc.) of the best matching word. No explanation, just the number."""
+
+    user_message = f"""Words:
+{words_str}
+
+Query: {prompt}
+
+Return only the index number of the best match."""
+
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=50,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        result = response.content[0].text.strip()
+
+        # Extract the number from the response
+        index = int(re.search(r"\d+", result).group())
+
+        if 0 <= index < len(words):
+            return words[index]
+        else:
+            raise ValueError(f"Invalid index returned: {index}")
+
+    except Exception as e:
+        raise ValueError(f"Error selecting word: {e}")
 
 
 def detect_related_theme(

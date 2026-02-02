@@ -15,6 +15,9 @@ def cmd_add(args):
     """Add vocabulary from an El País article."""
     print(f"Fetching article (using {args.browser} cookies)...")
 
+    source_lang = args.source_lang
+    target_lang = args.target_lang
+
     try:
         article_text = scraper.get_article_text(args.url, browser=args.browser)
     except Exception as e:
@@ -32,8 +35,8 @@ def cmd_add(args):
         words = llm.select_and_translate(
             article_text=article_text,
             known_words=known_lemmas,
-            target_lang="french",
-            source_lang="spanish",
+            target_lang=target_lang,
+            source_lang=source_lang,
             user_prompt=args.prompt,
             count=args.count,
         )
@@ -45,19 +48,25 @@ def cmd_add(args):
         print("No words returned from Claude")
         sys.exit(1)
 
-    new_count, updated_count = db.add_words(words, source_url=args.url)
+    new_count, updated_count = db.add_words(
+        words,
+        source=args.url,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        theme="el_pais",
+    )
     print(f"Added {new_count} words ({updated_count} updated with examples)")
 
     if new_count > 0:
         print("Generating audio pronunciations...")
         new_lemmas = [w["lemma"] for w in words if w["lemma"] not in known_lemmas]
-        generated, skipped = audio.generate_all_audio(new_lemmas)
+        generated, skipped = audio.generate_all_audio(new_lemmas, lang=source_lang)
         print(f"Generated {generated} new audio files")
 
 
 def cmd_list(args):
     """List known vocabulary words."""
-    words = db.get_all_words()
+    words = db.get_all_words(theme=args.theme if hasattr(args, "theme") else None)
 
     if not words:
         print("No words in vocabulary yet")
@@ -75,7 +84,7 @@ def cmd_list(args):
             examples = json.loads(examples)
 
         example_str = f" - {examples[0]}" if examples else ""
-        print(f"{word['lemma']} ({word['pos']}): {word['french']}{example_str}")
+        print(f"{word['lemma']} ({word['pos']}): {word['translation']}{example_str}")
 
 
 def cmd_export(args):
@@ -103,6 +112,11 @@ def cmd_stats(args):
     stats = db.get_stats()
 
     print(f"\nTotal vocabulary: {stats['total_words']} words")
+
+    if stats.get("by_theme"):
+        print("\nBy theme:")
+        for theme, count in stats["by_theme"].items():
+            print(f"  {theme}: {count}")
 
     if stats["by_pos"]:
         print("\nBy type:")
@@ -210,7 +224,7 @@ def cmd_pick(args):
     print(f"Lemma: {selected_word['lemma']}")
     if selected_word.get("pos"):
         print(f"POS: {selected_word['pos']}")
-    print(f"French: {selected_word['french']}")
+    print(f"Translation: {selected_word['translation']}")
 
     examples = selected_word.get("examples", [])
     if isinstance(examples, str):
@@ -223,8 +237,8 @@ def cmd_pick(args):
         for example in examples:
             print(f"   - {example}")
 
-    if selected_word.get("source_url"):
-        print(f"Source: {selected_word['source_url']}")
+    if selected_word.get("source"):
+        print(f"Source: {selected_word['source']}")
 
     if selected_word.get("added_at"):
         print(f"Added: {selected_word['added_at']}")
@@ -374,11 +388,11 @@ def cmd_theme(args):
     if len(words) > 10:
         print(f"  ... and {len(words) - 10} more")
 
-    # Generate audio for new words
+    # Generate audio for new words (use source language for pronunciation)
     if new_count > 0:
         print("\nGenerating audio pronunciations...")
         new_lemmas = [w["lemma"] for w in words if w["lemma"] not in known_lemmas]
-        generated, _ = audio.generate_all_audio(new_lemmas)
+        generated, _ = audio.generate_all_audio(new_lemmas, lang=source_lang)
         print(f"Generated {generated} new audio files")
 
     # Show theme summary
@@ -409,6 +423,16 @@ def main():
         "--count", type=int, default=30, help="Number of words to extract (default: 30)"
     )
     add_parser.add_argument(
+        "--source-lang",
+        default="Spanish",
+        help="Source language (default: Spanish)",
+    )
+    add_parser.add_argument(
+        "--target-lang",
+        default="French",
+        help="Target language (default: French)",
+    )
+    add_parser.add_argument(
         "--browser",
         default="firefox",
         choices=["chrome", "firefox", "edge", "opera"],
@@ -419,6 +443,9 @@ def main():
     list_parser = subparsers.add_parser("list", help="List known words")
     list_parser.add_argument(
         "--limit", type=int, default=50, help="Maximum words to display (default: 50)"
+    )
+    list_parser.add_argument(
+        "--theme", help="Filter by theme (e.g., 'el_pais')"
     )
     list_parser.set_defaults(func=cmd_list)
 

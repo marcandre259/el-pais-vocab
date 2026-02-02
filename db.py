@@ -341,14 +341,22 @@ def get_known_lemmas(theme: str, db_path: str = "vocab.db") -> List[str]:
 
 
 def add_words(
-    words: List[Dict], source_url: str, db_path: str = "vocab.db"
+    words: List[Dict],
+    source: str,
+    source_lang: str,
+    target_lang: str,
+    theme: str,
+    db_path: str = "vocab.db",
 ) -> tuple[int, int]:
     """
     Insert words into database, handling duplicates by appending examples.
 
     Args:
-        words: List of dicts with keys: word, lemma, pos, french, examples
-        source_url: URL of the article source
+        words: List of dicts with keys: word, lemma, pos, translation, gender, examples
+        source: URL or source description
+        source_lang: Source language (e.g., "Spanish")
+        target_lang: Target language (e.g., "French")
+        theme: Theme identifier (e.g., "el_pais")
         db_path: Path to SQLite database file
 
     Returns:
@@ -362,27 +370,57 @@ def add_words(
     updated_count = 0
 
     for word_data in words:
-        word = word_data["word"]
+        lemma = word_data["lemma"]
 
-        cursor.execute("SELECT id, examples FROM vocabulary WHERE word = ?", (word,))
+        cursor.execute(
+            "SELECT id, examples FROM vocabulary WHERE lemma = ? AND theme = ?",
+            (lemma, theme),
+        )
         existing = cursor.fetchone()
 
         if existing:
-            continue
-        else:
-            examples_json = json.dumps(word_data.get("examples", []))
+            existing_id, existing_examples_json = existing
+            existing_examples = (
+                json.loads(existing_examples_json) if existing_examples_json else []
+            )
+            new_examples = word_data.get("examples", [])
+            if isinstance(new_examples, str):
+                new_examples = [new_examples]
+
+            combined_examples = existing_examples + new_examples
+            unique_examples = list(dict.fromkeys(combined_examples))[:5]
+
             cursor.execute(
                 """
-                INSERT INTO vocabulary (word, lemma, pos, french, examples, source_url)
-                VALUES (?, ?, ?, ?, ?, ?)
+                UPDATE vocabulary
+                SET examples = ?
+                WHERE id = ?
+            """,
+                (json.dumps(unique_examples), existing_id),
+            )
+            updated_count += 1
+        else:
+            examples = word_data.get("examples", [])
+            if isinstance(examples, str):
+                examples = [examples]
+            examples_json = json.dumps(examples)
+
+            cursor.execute(
+                """
+                INSERT INTO vocabulary (word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     word_data["word"],
                     word_data["lemma"],
                     word_data.get("pos", ""),
-                    word_data["french"],
+                    word_data.get("gender", ""),
+                    word_data["translation"],
+                    source_lang,
+                    target_lang,
                     examples_json,
-                    source_url,
+                    source,
+                    theme,
                 ),
             )
             new_count += 1
@@ -393,20 +431,33 @@ def add_words(
     return (new_count, updated_count)
 
 
-def get_all_words(db_path: str = "vocab.db") -> List[Dict]:
-    """Return all vocabulary entries from the database."""
+def get_all_words(
+    db_path: str = "vocab.db", theme: Optional[str] = None
+) -> List[Dict]:
+    """Return all vocabulary entries from the database, optionally filtered by theme."""
     init_db(db_path)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute(
+    if theme:
+        cursor.execute(
+            """
+            SELECT id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at
+            FROM vocabulary
+            WHERE theme = ?
+            ORDER BY added_at DESC
+        """,
+            (theme,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at
+            FROM vocabulary
+            ORDER BY added_at DESC
         """
-        SELECT id, word, lemma, pos, french, examples, source_url, added_at
-        FROM vocabulary
-        ORDER BY added_at DESC
-    """
-    )
+        )
 
     words = []
     for row in cursor.fetchall():
@@ -419,26 +470,60 @@ def get_all_words(db_path: str = "vocab.db") -> List[Dict]:
     return words
 
 
-def get_stats(db_path: str = "vocab.db") -> Dict:
+def get_stats(db_path: str = "vocab.db", theme: Optional[str] = None) -> Dict:
     """Return statistics about the vocabulary database."""
     init_db(db_path)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM vocabulary")
+    if theme:
+        cursor.execute("SELECT COUNT(*) FROM vocabulary WHERE theme = ?", (theme,))
+    else:
+        cursor.execute("SELECT COUNT(*) FROM vocabulary")
     total_words = cursor.fetchone()[0]
 
+    if theme:
+        cursor.execute(
+            """
+            SELECT pos, COUNT(*) as count
+            FROM vocabulary
+            WHERE pos IS NOT NULL AND pos != '' AND theme = ?
+            GROUP BY pos
+            ORDER BY count DESC
+        """,
+            (theme,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT pos, COUNT(*) as count
+            FROM vocabulary
+            WHERE pos IS NOT NULL AND pos != ''
+            GROUP BY pos
+            ORDER BY count DESC
+        """
+        )
+    pos_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+    # Get theme breakdown
     cursor.execute(
         """
-        SELECT pos, COUNT(*) as count
+        SELECT theme, COUNT(*) as count
         FROM vocabulary
-        WHERE pos IS NOT NULL AND pos != ''
-        GROUP BY pos
+        GROUP BY theme
         ORDER BY count DESC
     """
     )
-    pos_counts = {row[0]: row[1] for row in cursor.fetchall()}
+    theme_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
     conn.close()
 
-    return {"total_words": total_words, "by_pos": pos_counts}
+    return {"total_words": total_words, "by_pos": pos_counts, "by_theme": theme_counts}
+
+
+def get_source_lang_for_theme(table_name: str, db_path: str = "vocab.db") -> Optional[str]:
+    """Get the source language for a theme table."""
+    theme_info = get_theme_by_table_name(table_name, db_path)
+    if theme_info:
+        return theme_info.get("source_lang")
+    return None
