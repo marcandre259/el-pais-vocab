@@ -45,12 +45,9 @@ export interface PaginatedResponse<T> {
 
 // Theme types
 export interface Theme {
-  id: number;
-  table_name: string;
-  theme_description: string;
+  theme: string;
   source_lang: string;
   target_lang: string;
-  deck_name: string;
   created_at?: string;
   word_count: number;
 }
@@ -97,8 +94,7 @@ export interface ArticleExtractResult {
 }
 
 export interface ThemeCreateResult {
-  table_name: string;
-  theme_description: string;
+  theme: string;
   new_words: number;
   updated_words: number;
   is_related_theme: boolean;
@@ -114,7 +110,7 @@ export interface SyncStatus {
 export interface SyncRequest {
   include_main?: boolean;
   include_themes?: boolean;
-  theme_names?: string[];
+  theme_name?: string;
 }
 
 export interface SyncResult {

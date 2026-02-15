@@ -18,9 +18,11 @@ export function Home() {
     setActiveTaskId(null);
   };
 
-  const handleSyncRequest = async () => {
+  const handleSyncRequest = async (themeName?: string) => {
     try {
-      const response = await syncToAnki({ include_main: true, include_themes: true });
+      const response = themeName
+        ? await syncToAnki({ theme_name: themeName, include_main: false, include_themes: false })
+        : await syncToAnki({ include_main: true, include_themes: true });
       setActiveTaskId(response.task_id);
     } catch (error) {
       console.error('Failed to start sync:', error);

@@ -1,10 +1,10 @@
-import type { TaskStatus } from '../api/types';
+import type { TaskStatus, ThemeCreateResult } from '../api/types';
 import styles from './TaskProgress.module.css';
 
 interface TaskProgressProps {
   task: TaskStatus;
   onDismiss?: () => void;
-  onSyncRequest?: () => void;
+  onSyncRequest?: (themeName?: string) => void;
 }
 
 const TASK_LABELS: Record<string, string> = {
@@ -50,7 +50,12 @@ export function TaskProgress({ task, onDismiss, onSyncRequest }: TaskProgressPro
             <p className={styles.errorMessage}>{task.error}</p>
           )}
           {showSyncButton && (
-            <button className={styles.syncButton} onClick={onSyncRequest}>
+            <button className={styles.syncButton} onClick={() => {
+              const themeName = task.type === 'theme_create'
+                ? (task.result as ThemeCreateResult)?.theme
+                : undefined;
+              onSyncRequest?.(themeName);
+            }}>
               Sync to Anki
             </button>
           )}

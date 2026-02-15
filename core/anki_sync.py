@@ -1,4 +1,5 @@
 import json
+import re
 import base64
 import requests
 from pathlib import Path
@@ -8,6 +9,18 @@ from core import db
 
 ANKICONNECT_URL = "http://localhost:8765"
 MODEL_NAME = "Language Vocabulary"
+
+
+def derive_deck_name(theme_name: str) -> str:
+    """Derive an Anki deck name from a theme string.
+
+    Strips punctuation before splitting to avoid commas/periods in deck names.
+    Takes up to 3 significant words (length > 3) and joins with hyphens.
+    """
+    cleaned = re.sub(r'[^\w\s]', '', theme_name)
+    words = cleaned.split()
+    significant = [w for w in words if len(w) > 3][:3]
+    return "-".join(w.capitalize() for w in significant) if significant else theme_name
 
 
 def _invoke_anki(action: str, **params) -> dict:
@@ -96,7 +109,9 @@ def ensure_note_type_exists() -> None:
             "Example1",
             "Example2",
             "Audio",
-            "Source"
+            "Source",
+            "SourceLang",
+            "TargetLang"
         ],
         "css": """
 .card {
@@ -168,7 +183,10 @@ def ensure_note_type_exists() -> None:
 {{/Example2}}
 {{#Source}}
 <div class="source">Source: {{Source}}</div>
-{{/Source}}"""
+{{/Source}}
+{{#SourceLang}}
+<div class="source">{{SourceLang}} → {{TargetLang}}</div>
+{{/SourceLang}}"""
             }
         ]
     }
@@ -255,15 +273,18 @@ def create_note(
             examples = []
 
     # Prepare fields - support both old and new field names for backwards compatibility
+    # Use `or ''` to coerce None values to empty strings (AnkiConnect requires strings)
     fields = {
         "Lemma": lemma,
-        "Translation": word.get('translation', word.get('french', '')),
-        "PartOfSpeech": word.get('pos', ''),
-        "WordAsFound": word.get('word', lemma),
+        "Translation": word.get('translation') or word.get('french') or '',
+        "PartOfSpeech": word.get('pos') or '',
+        "WordAsFound": word.get('word') or lemma,
         "Example1": examples[0] if len(examples) > 0 else "",
         "Example2": examples[1] if len(examples) > 1 else "",
         "Audio": upload_audio(lemma, audio_dir),
-        "Source": word.get('source', word.get('source_url', ''))
+        "Source": word.get('source') or word.get('source_url') or '',
+        "SourceLang": word.get('source_lang') or '',
+        "TargetLang": word.get('target_lang') or '',
     }
 
     # Build tags from word metadata
@@ -407,12 +428,7 @@ def sync_all_themes(
         source_lang = t['source_lang']
         target_lang = t['target_lang']
 
-        # Derive deck name from theme string
-        words_in_theme = theme_name.split()
-        significant = [w for w in words_in_theme if len(w) > 3][:3]
-        deck_name = (
-            "-".join(w.capitalize() for w in significant) if significant else theme_name
-        )
+        deck_name = derive_deck_name(theme_name)
 
         print(f"\nSyncing {deck_name} ({source_lang} -> {target_lang})...")
 

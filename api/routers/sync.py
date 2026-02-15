@@ -6,7 +6,8 @@ from api.schemas.sync import SyncStatus, SyncRequest, SyncResult
 from api.schemas.tasks import TaskStatus, TaskType
 from api.services.task_manager import task_manager
 
-from core import db, anki_sync
+from core import db
+from core.anki_sync import check_connection, sync_to_anki, derive_deck_name
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 @router.get("/status", response_model=SyncStatus)
 def check_anki_status():
     """Check if AnkiConnect is accessible."""
-    connected = anki_sync.check_connection()
+    connected = check_connection()
 
     if connected:
         return SyncStatus(connected=True, message="AnkiConnect is running")
@@ -32,7 +33,7 @@ def _sync_to_anki(
 ) -> dict:
     """Synchronous function to sync vocabulary to Anki."""
     # Check connection first
-    if not anki_sync.check_connection():
+    if not check_connection():
         raise ConnectionError(
             "Cannot connect to AnkiConnect. "
             "Ensure Anki is running with AnkiConnect addon installed."
@@ -51,14 +52,9 @@ def _sync_to_anki(
         if not theme_exists and theme_name != "el_pais":
             raise ValueError(f"Theme not found: {theme_name}")
 
-        # Derive deck name
-        words_in_name = theme_name.split()
-        significant = [w for w in words_in_name if len(w) > 3][:3]
-        deck_name = (
-            "-".join(w.capitalize() for w in significant) if significant else theme_name
-        )
+        deck_name = derive_deck_name(theme_name)
 
-        stats = anki_sync.sync_to_anki(
+        stats = sync_to_anki(
             db_path=settings.db_path,
             audio_dir=settings.audio_dir,
             deck_name=deck_name,
@@ -71,7 +67,7 @@ def _sync_to_anki(
     else:
         # Sync main vocabulary
         if include_main:
-            stats = anki_sync.sync_to_anki(
+            stats = sync_to_anki(
                 db_path=settings.db_path,
                 audio_dir=settings.audio_dir,
                 deck_name="el-pais",
@@ -87,13 +83,9 @@ def _sync_to_anki(
             themes = db.get_themes(settings.db_path)
             for t in themes:
                 theme = t["theme"]
-                words_in_name = theme.split()
-                significant = [w for w in words_in_name if len(w) > 3][:3]
-                deck_name = (
-                    "-".join(w.capitalize() for w in significant) if significant else theme
-                )
+                deck_name = derive_deck_name(theme)
 
-                stats = anki_sync.sync_to_anki(
+                stats = sync_to_anki(
                     db_path=settings.db_path,
                     audio_dir=settings.audio_dir,
                     deck_name=deck_name,

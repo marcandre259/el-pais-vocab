@@ -158,8 +158,7 @@ class TestDetectRelatedTheme:
 
         existing_themes = [
             {
-                "table_name": "vocab_cooking",
-                "theme_description": "cooking vocabulary",
+                "theme": "cooking vocabulary",
                 "source_lang": "Dutch",
                 "target_lang": "English",
             }
@@ -170,7 +169,7 @@ class TestDetectRelatedTheme:
         )
 
         assert result is not None
-        assert result["table_name"] == "vocab_cooking"
+        assert result["theme"] == "cooking vocabulary"
 
     @patch("core.llm.Anthropic")
     def test_returns_none_when_not_related(self, mock_anthropic_class, mock_api_key):
@@ -184,8 +183,7 @@ class TestDetectRelatedTheme:
 
         existing_themes = [
             {
-                "table_name": "vocab_cooking",
-                "theme_description": "cooking vocabulary",
+                "theme": "cooking vocabulary",
                 "source_lang": "Dutch",
                 "target_lang": "English",
             }
@@ -201,8 +199,7 @@ class TestDetectRelatedTheme:
         """Test that None is returned when no themes match language pair."""
         existing_themes = [
             {
-                "table_name": "vocab_cooking",
-                "theme_description": "cooking vocabulary",
+                "theme": "cooking vocabulary",
                 "source_lang": "Spanish",
                 "target_lang": "French",
             }

@@ -28,8 +28,8 @@ export function Browse() {
     { value: '', label: 'All themes' },
     { value: 'el_pais', label: 'El Pais Articles' },
     ...(themes?.map((t) => ({
-      value: t.table_name,
-      label: t.theme_description,
+      value: t.theme,
+      label: t.theme,
     })) || []),
   ];
 
