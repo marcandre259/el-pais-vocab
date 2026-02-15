@@ -100,7 +100,7 @@ def select_and_translate(
     for attempt in range(max_attempts):
         try:
             response = client.messages.parse(
-                model="claude-haiku-4-5-20251001",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=max_tokens,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
@@ -235,7 +235,7 @@ First, use the list_themes tool to see if there are related themes you should ch
     for attempt in range(5):  # Max 5 tool use iterations
         try:
             with client.messages.stream(
-                model="claude-haiku-4-5-20251001",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=max_tokens,
                 system=system_prompt,
                 tools=tools,
@@ -376,7 +376,7 @@ Return only the index number of the best match."""
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=50,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
@@ -459,7 +459,7 @@ Return only the theme name of the most related theme, or "NONE"."""
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=100,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],

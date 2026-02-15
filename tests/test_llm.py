@@ -47,7 +47,7 @@ class TestSelectTranslateOutput:
 class TestPickWordByPrompt:
     """Tests for pick_word_by_prompt function."""
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_picks_correct_word(self, mock_anthropic_class, mock_api_key):
         """Test that correct word is picked based on prompt."""
         # Set up mock
@@ -68,7 +68,7 @@ class TestPickWordByPrompt:
 
         assert result["lemma"] == "casa"
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_handles_index_zero(self, mock_anthropic_class, mock_api_key):
         """Test that index 0 is handled correctly."""
         mock_client = MagicMock()
@@ -87,7 +87,7 @@ class TestPickWordByPrompt:
 
         assert result["lemma"] == "querer"
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_raises_on_missing_api_key(self, mock_anthropic_class):
         """Test that missing API key raises error."""
         with patch.dict(os.environ, {}, clear=True):
@@ -99,7 +99,7 @@ class TestPickWordByPrompt:
 
             assert "ANTHROPIC_API_KEY" in str(excinfo.value)
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_raises_on_invalid_index(self, mock_anthropic_class, mock_api_key):
         """Test that invalid index raises error."""
         mock_client = MagicMock()
@@ -118,7 +118,7 @@ class TestPickWordByPrompt:
 
         assert "Invalid index" in str(excinfo.value)
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_handles_translation_field_names(self, mock_anthropic_class, mock_api_key):
         """Test that both 'translation' and 'french' field names work."""
         mock_client = MagicMock()
@@ -146,7 +146,7 @@ class TestPickWordByPrompt:
 class TestDetectRelatedTheme:
     """Tests for detect_related_theme function."""
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_finds_related_theme(self, mock_anthropic_class, mock_api_key):
         """Test that related theme is detected."""
         mock_client = MagicMock()
@@ -172,7 +172,7 @@ class TestDetectRelatedTheme:
         assert result is not None
         assert result["table_name"] == "vocab_cooking"
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_returns_none_when_not_related(self, mock_anthropic_class, mock_api_key):
         """Test that None is returned when no theme is related."""
         mock_client = MagicMock()
@@ -224,7 +224,7 @@ class TestDetectRelatedTheme:
 class TestSelectAndTranslate:
     """Tests for select_and_translate function."""
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_returns_word_list(self, mock_anthropic_class, mock_api_key):
         """Test that word list is returned."""
         mock_client = MagicMock()
@@ -262,7 +262,7 @@ class TestSelectAndTranslate:
         assert result[0]["lemma"] == "querer"
         assert result[0]["translation"] == "vouloir"
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_raises_on_missing_api_key(self, mock_anthropic_class):
         """Test that missing API key raises error."""
         with patch.dict(os.environ, {}, clear=True):
@@ -284,7 +284,7 @@ class TestSelectAndTranslate:
 class TestGenerateThemedVocabulary:
     """Tests for generate_themed_vocabulary function."""
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_generates_vocabulary(self, mock_anthropic_class, mock_api_key):
         """Test that themed vocabulary is generated."""
         mock_client = MagicMock()
@@ -327,7 +327,7 @@ class TestGenerateThemedVocabulary:
         assert len(result) == 1
         assert result[0]["lemma"] == "koken"
 
-    @patch("llm.Anthropic")
+    @patch("core.llm.Anthropic")
     def test_handles_tool_use(self, mock_anthropic_class, mock_api_key):
         """Test that tool use is handled correctly."""
         mock_client = MagicMock()
