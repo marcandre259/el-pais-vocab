@@ -17,7 +17,7 @@ class SyncRequest(BaseModel):
     )
     include_themes: bool = Field(default=True, description="Include themed vocabulary")
     theme_name: Optional[str] = Field(
-        default=None, description="Sync only specific theme (by table_name)"
+        default=None, description="Sync only specific theme (by theme name)"
     )
 
 

@@ -1,16 +1,14 @@
 from typing import Optional
 from pydantic import BaseModel, Field
+from api.schemas.vocabulary import VocabularyWord
 
 
 class Theme(BaseModel):
     """Theme metadata model."""
 
-    id: int
-    table_name: str
-    theme_description: str
+    theme: str
     source_lang: str
     target_lang: str
-    deck_name: str
     created_at: Optional[str] = None
     word_count: int = 0
 
@@ -18,23 +16,11 @@ class Theme(BaseModel):
         from_attributes = True
 
 
-class ThemeWord(BaseModel):
-    """Word from a theme table."""
-
-    id: int
-    word: str
-    lemma: str
-    pos: Optional[str] = None
-    translation: str
-    examples: list[str] = Field(default_factory=list)
-    added_at: Optional[str] = None
-
-
 class ThemeWithWords(BaseModel):
     """Theme with its vocabulary words."""
 
     theme: Theme
-    words: list[ThemeWord]
+    words: list[VocabularyWord]
 
 
 class ThemeCreateRequest(BaseModel):
@@ -44,16 +30,12 @@ class ThemeCreateRequest(BaseModel):
     source_lang: str = Field(default="Dutch", description="Source language")
     target_lang: str = Field(default="English", description="Target language")
     word_count: int = Field(default=20, ge=1, le=100, description="Number of words to generate")
-    deck_name: Optional[str] = Field(
-        default=None, description="Anki deck name (defaults to theme name)"
-    )
 
 
 class ThemeCreateResult(BaseModel):
     """Result model for theme creation."""
 
-    table_name: str
-    theme_description: str
+    theme: str
     new_words: int
     updated_words: int
     is_related_theme: bool = False

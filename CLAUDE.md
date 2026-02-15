@@ -42,7 +42,7 @@ pytest tests/test_db.py::TestAddWords::test_add_new_word
 ```
 main.py          # CLI entry point (argparse subcommands)
 core/            # Core business logic modules
-  db.py          # SQLite operations (vocabulary + theme tables)
+  db.py          # SQLite operations (single vocabulary table)
   llm.py         # Claude API integration (Pydantic structured output + tool use)
   scraper.py     # Article fetching with browser cookie extraction
   audio.py       # gTTS text-to-speech generation
@@ -59,11 +59,11 @@ api/             # FastAPI REST API
 ## Data Flow
 
 1. **Article vocabulary**: URL -> scraper.py (with cookies) -> llm.py (extraction) -> db.py (vocabulary table) -> audio.py -> anki_sync.py
-2. **Themed vocabulary**: theme prompt -> llm.py (tool use loop to check existing themes) -> db.py (theme-specific table) -> audio.py -> anki_sync.py
+2. **Themed vocabulary**: theme prompt -> llm.py (tool use loop to check existing themes) -> db.py (vocabulary table with theme column) -> audio.py -> anki_sync.py
 
 ## Key Patterns
 
-- **Database schema**: Main vocabulary uses a single `vocabulary` table with `theme` column. Themed vocabulary creates separate `vocab_{name}` tables registered in `theme_registry`.
+- **Database schema**: All words live in a single `vocabulary` table with `UNIQUE(word, lemma, theme)` constraint. The `theme` column distinguishes word groups (e.g., `el_pais` for articles, theme descriptions for themed vocabulary).
 - **LLM integration**: Uses `client.messages.parse()` with Pydantic `SelectTranslateOutputList` for article extraction; uses streaming tool-use loop for themed vocabulary generation with `lookup_theme_words` and `list_themes` tools.
 - **Duplicate handling**: Existing lemmas get updated with new examples (max 5 per word).
 - **Language flexibility**: Article extraction defaults to Spanish->French; themed vocabulary supports any language pair via `--source` and `--target` flags.

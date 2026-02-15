@@ -45,17 +45,26 @@ def _sync_to_anki(
 
     # Sync specific theme only
     if theme_name:
-        theme_info = db.get_theme_by_table_name(theme_name, settings.db_path)
-        if not theme_info:
+        # Verify theme exists
+        themes = db.get_themes(settings.db_path)
+        theme_exists = any(t['theme'] == theme_name for t in themes)
+        if not theme_exists and theme_name != "el_pais":
             raise ValueError(f"Theme not found: {theme_name}")
 
-        stats = anki_sync.sync_theme_to_anki(
-            table_name=theme_name,
-            deck_name=theme_info["deck_name"],
+        # Derive deck name
+        words_in_name = theme_name.split()
+        significant = [w for w in words_in_name if len(w) > 3][:3]
+        deck_name = (
+            "-".join(w.capitalize() for w in significant) if significant else theme_name
+        )
+
+        stats = anki_sync.sync_to_anki(
             db_path=settings.db_path,
             audio_dir=settings.audio_dir,
+            deck_name=deck_name,
+            theme=theme_name,
         )
-        results[theme_info["deck_name"]] = stats
+        results[deck_name] = stats
         total_added = stats["added"]
         total_skipped = stats["skipped"]
         total_failed = stats["failed"]
@@ -66,6 +75,7 @@ def _sync_to_anki(
                 db_path=settings.db_path,
                 audio_dir=settings.audio_dir,
                 deck_name="el-pais",
+                theme="el_pais",
             )
             results["el-pais"] = stats
             total_added += stats["added"]
@@ -74,15 +84,22 @@ def _sync_to_anki(
 
         # Sync all themes
         if include_themes:
-            themes = db.get_all_themes(settings.db_path)
-            for theme in themes:
-                stats = anki_sync.sync_theme_to_anki(
-                    table_name=theme["table_name"],
-                    deck_name=theme["deck_name"],
+            themes = db.get_themes(settings.db_path)
+            for t in themes:
+                theme = t["theme"]
+                words_in_name = theme.split()
+                significant = [w for w in words_in_name if len(w) > 3][:3]
+                deck_name = (
+                    "-".join(w.capitalize() for w in significant) if significant else theme
+                )
+
+                stats = anki_sync.sync_to_anki(
                     db_path=settings.db_path,
                     audio_dir=settings.audio_dir,
+                    deck_name=deck_name,
+                    theme=theme,
                 )
-                results[theme["deck_name"]] = stats
+                results[deck_name] = stats
                 total_added += stats["added"]
                 total_skipped += stats["skipped"]
                 total_failed += stats["failed"]

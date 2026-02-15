@@ -30,20 +30,12 @@ def get_audio(lemma: str):
 
 def _generate_all_audio(theme: str | None, language: str) -> dict:
     """Synchronous function to generate audio for all missing words."""
-    if theme:
-        # Get theme info for source language
-        theme_info = db.get_theme_by_table_name(theme, settings.db_path)
-        if theme_info:
-            words = db.get_all_words_from_theme(theme, settings.db_path)
-            lang = theme_info.get("source_lang", language)
-        else:
-            # Theme not found, try main vocabulary
-            words = db.get_all_words(settings.db_path, theme=theme)
-            lang = language
-    else:
-        # Main vocabulary (el_pais)
-        words = db.get_all_words(settings.db_path)
-        lang = language
+    words = db.get_all_words(settings.db_path, theme=theme)
+
+    # Determine language from words if available
+    lang = language
+    if words and words[0].get("source_lang"):
+        lang = words[0]["source_lang"]
 
     lemmas = [w["lemma"] for w in words]
 

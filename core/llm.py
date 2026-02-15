@@ -2,7 +2,7 @@ import os
 import json
 import re
 from typing import List, Dict, Optional
-from anthropic import Anthropic, transform_schema
+from anthropic import Anthropic
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -137,8 +137,8 @@ def generate_themed_vocabulary(
     target_lang: str,
     known_words: List[str],
     count: int,
-    get_all_themes_func,
-    search_theme_words_func,
+    get_themes_func,
+    search_words_func,
 ) -> List[Dict]:
     """
     Generate vocabulary based on a theme using Claude with tool use.
@@ -149,8 +149,8 @@ def generate_themed_vocabulary(
         target_lang: Target language (e.g., "English", "French")
         known_words: List of lemmas already in this theme (to exclude)
         count: Number of words to generate
-        get_all_themes_func: Function to get all themes from database
-        search_theme_words_func: Function to search words in a theme table
+        get_themes_func: Function to get all themes from database
+        search_words_func: Function to search words in a theme
 
     Returns:
         List of dicts with keys: word, lemma, pos, translation, examples
@@ -190,20 +190,20 @@ Output format (JSON array only, no markdown):
     tools = [
         {
             "name": "lookup_theme_words",
-            "description": "Look up existing vocabulary words in a theme table to check for duplicates or find related words",
+            "description": "Look up existing vocabulary words in a theme to check for duplicates or find related words",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "table_name": {
+                    "theme": {
                         "type": "string",
-                        "description": "The theme table name to query (e.g., 'vocab_cooking_vocabulary')",
+                        "description": "The theme name to query (e.g., 'cooking vocabulary')",
                     },
                     "search_term": {
                         "type": "string",
                         "description": "Optional: filter words containing this term",
                     },
                 },
-                "required": ["table_name"],
+                "required": ["theme"],
             },
         },
         {
@@ -255,20 +255,20 @@ First, use the list_themes tool to see if there are related themes you should ch
                         tool_input = block.input
 
                         if tool_name == "list_themes":
-                            themes = get_all_themes_func()
+                            themes = get_themes_func()
                             result = []
                             for t in themes:
                                 result.append(
-                                    f"- {t['table_name']}: \"{t['theme_description']}\" ({t['source_lang']} → {t['target_lang']}, {t['word_count']} words)"
+                                    f"- {t['theme']}: ({t['source_lang']} → {t['target_lang']}, {t['word_count']} words)"
                                 )
                             tool_result = (
                                 "\n".join(result) if result else "No themes found."
                             )
                         elif tool_name == "lookup_theme_words":
-                            table_name = tool_input.get("table_name")
+                            theme = tool_input.get("theme")
                             search_term = tool_input.get("search_term")
                             try:
-                                words = search_theme_words_func(table_name, search_term)
+                                words = search_words_func(theme, search_term)
                                 if words:
                                     result = []
                                     for w in words[:50]:  # Limit to 50 words
@@ -434,7 +434,7 @@ def detect_related_theme(
     system_prompt = """You are analyzing vocabulary themes for a language learning app. Given a new theme and a list of existing themes, determine if the new theme is semantically related enough to be merged with an existing one.
 
 Rules:
-- Return ONLY the table_name of the related theme, or "NONE" if no theme is related
+- Return ONLY the theme name of the related theme, or "NONE" if no theme is related
 - Themes are related if:
   - They cover the same topic area (e.g., "cooking verbs" relates to "kitchen vocabulary")
   - One is a subset of another (e.g., "tapas vocabulary" relates to "Spanish food")
@@ -443,11 +443,11 @@ Rules:
   - They are distinct topics (e.g., "cooking" vs "sports")
   - The overlap would be minimal (e.g., "medical terms" vs "general conversation")
 
-Return only the table_name or "NONE"."""
+Return only the theme name or "NONE"."""
 
     themes_list = []
     for t in matching_themes:
-        themes_list.append(f"- {t['table_name']}: \"{t['theme_description']}\"")
+        themes_list.append(f"- {t['theme']}")
 
     user_message = f"""New theme: "{new_theme}"
 Language pair: {source_lang} → {target_lang}
@@ -455,7 +455,7 @@ Language pair: {source_lang} → {target_lang}
 Existing themes with same language pair:
 {chr(10).join(themes_list)}
 
-Return only the table_name of the most related theme, or "NONE"."""
+Return only the theme name of the most related theme, or "NONE"."""
 
     try:
         response = client.messages.create(
@@ -472,7 +472,7 @@ Return only the table_name of the most related theme, or "NONE"."""
 
         # Find the matching theme
         for theme in matching_themes:
-            if theme["table_name"] == result:
+            if theme["theme"] == result:
                 return theme
 
         return None

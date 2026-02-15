@@ -1,18 +1,62 @@
 import sqlite3
 import json
-import re
 from typing import List, Dict, Optional
-from datetime import datetime
 
 
 def init_db(db_path: str = "vocab.db") -> None:
-    """Create database tables if they don't exist."""
+    """Create database tables if they don't exist, and run migrations."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
+    # Check if vocabulary table exists
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='vocabulary'"
+    )
+    table_exists = cursor.fetchone() is not None
+
+    if not table_exists:
+        # Fresh DB: create with correct constraint
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS vocabulary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word TEXT NOT NULL,
+                lemma TEXT NOT NULL,
+                pos TEXT,
+                gender TEXT,
+                translation TEXT NOT NULL,
+                source_lang TEXT NOT NULL,
+                target_lang TEXT NOT NULL,
+                examples TEXT,
+                source TEXT,
+                theme TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(word, lemma, theme)
+            )
+        """
+        )
+        conn.commit()
+    else:
+        # Check if constraint needs migration from UNIQUE(lemma) to UNIQUE(word, lemma, theme)
+        cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='vocabulary'"
+        )
+        create_sql = cursor.fetchone()[0]
+        if "UNIQUE(word, lemma, theme)" not in create_sql:
+            _migrate_unique_constraint(conn)
+
+    conn.close()
+
+    # Run theme data migration (separate connection)
+    migrate_themes_to_vocabulary(db_path)
+
+
+def _migrate_unique_constraint(conn: sqlite3.Connection) -> None:
+    """Migrate vocabulary table from UNIQUE(lemma) to UNIQUE(word, lemma, theme)."""
+    cursor = conn.cursor()
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS vocabulary (
+        CREATE TABLE vocabulary_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             word TEXT NOT NULL,
             lemma TEXT NOT NULL,
@@ -25,315 +69,108 @@ def init_db(db_path: str = "vocab.db") -> None:
             source TEXT,
             theme TEXT NOT NULL,
             added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(lemma)
+            UNIQUE(word, lemma, theme)
         )
     """
     )
-    conn.commit()
-    conn.close()
-
-
-# ============ Theme Registry Functions ============
-
-
-def init_theme_registry(db_path: str = "vocab.db") -> None:
-    """Create theme_registry table if it doesn't exist."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS theme_registry (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            table_name TEXT NOT NULL UNIQUE,
-            theme_description TEXT NOT NULL,
-            source_lang TEXT NOT NULL,
-            target_lang TEXT NOT NULL,
-            deck_name TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            word_count INTEGER DEFAULT 0
-        )
+        INSERT OR IGNORE INTO vocabulary_new
+            (id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at)
+        SELECT id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at
+        FROM vocabulary
     """
     )
-
+    cursor.execute("DROP TABLE vocabulary")
+    cursor.execute("ALTER TABLE vocabulary_new RENAME TO vocabulary")
     conn.commit()
-    conn.close()
 
 
-def sanitize_table_name(theme: str) -> str:
-    """
-    Convert theme description to SQL-safe table name.
-
-    Examples:
-        "cooking vocabulary" -> "vocab_cooking_vocabulary"
-        "Dutch words for active recall" -> "vocab_dutch_words_for_active_recall"
-    """
-    clean = re.sub(r"[^a-z0-9]+", "_", theme.lower())
-    clean = clean.strip("_")[:45]  # Leave room for prefix
-    return f"vocab_{clean}"
-
-
-def create_theme_table(
-    table_name: str,
-    theme_description: str,
-    source_lang: str,
-    target_lang: str,
-    deck_name: str,
-    db_path: str = "vocab.db",
-) -> None:
-    """Create a new themed vocabulary table and register it."""
-    init_theme_registry(db_path)
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    # Create the themed vocabulary table
-    cursor.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            word TEXT NOT NULL,
-            lemma TEXT NOT NULL,
-            pos TEXT,
-            translation TEXT NOT NULL,
-            examples TEXT,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(lemma)
-        )
-    """
-    )
-
-    # Register the theme
-    cursor.execute(
-        """
-        INSERT OR IGNORE INTO theme_registry
-        (table_name, theme_description, source_lang, target_lang, deck_name)
-        VALUES (?, ?, ?, ?, ?)
-    """,
-        (table_name, theme_description, source_lang, target_lang, deck_name),
-    )
-
-    conn.commit()
-    conn.close()
-
-
-def get_all_themes(db_path: str = "vocab.db") -> List[Dict]:
-    """Return all registered themes with metadata."""
-    init_theme_registry(db_path)
+def migrate_themes_to_vocabulary(db_path: str = "vocab.db") -> None:
+    """Migrate all theme tables into the single vocabulary table, then drop them."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
+    # Check if theme_registry exists
     cursor.execute(
-        """
-        SELECT id, table_name, theme_description, source_lang, target_lang,
-               deck_name, created_at, word_count
-        FROM theme_registry
-        ORDER BY created_at DESC
-    """
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='theme_registry'"
     )
+    if not cursor.fetchone():
+        conn.close()
+        return
 
-    themes = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return themes
-
-
-def get_theme_by_table_name(
-    table_name: str, db_path: str = "vocab.db"
-) -> Optional[Dict]:
-    """Get a specific theme's metadata by table name."""
-    init_theme_registry(db_path)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
+    # Get all theme entries
     cursor.execute(
-        """
-        SELECT id, table_name, theme_description, source_lang, target_lang,
-               deck_name, created_at, word_count
-        FROM theme_registry
-        WHERE table_name = ?
-    """,
-        (table_name,),
+        "SELECT table_name, theme_description, source_lang, target_lang FROM theme_registry"
     )
+    themes = cursor.fetchall()
 
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
+    for theme_row in themes:
+        table_name = theme_row["table_name"]
+        theme_description = theme_row["theme_description"]
+        source_lang = theme_row["source_lang"]
+        target_lang = theme_row["target_lang"]
 
-
-def add_words_to_theme(
-    words: List[Dict], table_name: str, db_path: str = "vocab.db"
-) -> tuple[int, int]:
-    """
-    Insert words into a themed table, handling duplicates by appending examples.
-
-    Args:
-        words: List of dicts with keys: word, lemma, pos, translation, examples
-        table_name: Name of the theme table
-        db_path: Path to SQLite database file
-
-    Returns:
-        Tuple of (new_words_count, updated_words_count)
-    """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    new_count = 0
-    updated_count = 0
-
-    for word_data in words:
-        lemma = word_data["lemma"]
-
+        # Check if the theme table actually exists
         cursor.execute(
-            f"SELECT id, examples FROM {table_name} WHERE lemma = ?", (lemma,)
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
         )
-        existing = cursor.fetchone()
+        if not cursor.fetchone():
+            continue
 
-        if existing:
-            existing_id, existing_examples_json = existing
+        # Read all rows from the theme table
+        cursor.execute(
+            f"SELECT word, lemma, pos, translation, examples, added_at FROM [{table_name}]"
+        )
+        rows = cursor.fetchall()
 
-            existing_examples = (
-                json.loads(existing_examples_json) if existing_examples_json else []
+        for row in rows:
+            # Check if (word, lemma, theme) already exists
+            cursor.execute(
+                "SELECT id FROM vocabulary WHERE word = ? AND lemma = ? AND theme = ?",
+                (row["word"], row["lemma"], theme_description),
             )
-            new_examples = word_data.get("examples", [])
-
-            combined_examples = existing_examples + new_examples
-            unique_examples = list(dict.fromkeys(combined_examples))[:5]
+            if cursor.fetchone():
+                continue
 
             cursor.execute(
-                f"""
-                UPDATE {table_name}
-                SET examples = ?
-                WHERE id = ?
-            """,
-                (json.dumps(unique_examples), existing_id),
-            )
-            updated_count += 1
-        else:
-            examples_json = json.dumps(word_data.get("examples", []))
-            cursor.execute(
-                f"""
-                INSERT INTO {table_name} (word, lemma, pos, translation, examples)
-                VALUES (?, ?, ?, ?, ?)
+                """
+                INSERT INTO vocabulary
+                    (word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at)
+                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL, ?, ?)
             """,
                 (
-                    word_data["word"],
-                    word_data["lemma"],
-                    word_data.get("pos", ""),
-                    word_data["translation"],
-                    examples_json,
+                    row["word"],
+                    row["lemma"],
+                    row["pos"],
+                    row["translation"],
+                    source_lang,
+                    target_lang,
+                    row["examples"],
+                    theme_description,
+                    row["added_at"],
                 ),
             )
-            new_count += 1
 
-    # Update word count in registry
-    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
-    total_count = cursor.fetchone()[0]
-    cursor.execute(
-        "UPDATE theme_registry SET word_count = ? WHERE table_name = ?",
-        (total_count, table_name),
-    )
+        # Drop the theme table
+        cursor.execute(f"DROP TABLE [{table_name}]")
+
+    # Drop theme_registry
+    cursor.execute("DROP TABLE theme_registry")
 
     conn.commit()
     conn.close()
-
-    return (new_count, updated_count)
-
-
-def get_all_words_from_theme(table_name: str, db_path: str = "vocab.db") -> List[Dict]:
-    """Return all vocabulary entries from a specific theme table."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute(
-        f"""
-        SELECT id, word, lemma, pos, translation, examples, added_at
-        FROM {table_name}
-        ORDER BY added_at DESC
-    """
-    )
-
-    words = []
-    for row in cursor.fetchall():
-        word_dict = dict(row)
-        if word_dict["examples"]:
-            word_dict["examples"] = json.loads(word_dict["examples"])
-        words.append(word_dict)
-
-    conn.close()
-    return words
-
-
-def get_known_lemmas_from_theme(
-    table_name: str, db_path: str = "vocab.db"
-) -> List[str]:
-    """Return list of all lemmas in a specific theme table."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute(f"SELECT lemma FROM {table_name}")
-    lemmas = [row[0] for row in cursor.fetchall()]
-
-    conn.close()
-    return lemmas
-
-
-def search_theme_words(
-    table_name: str, search_term: Optional[str] = None, db_path: str = "vocab.db"
-) -> List[Dict]:
-    """
-    Search for words in a theme table, optionally filtering by search term.
-
-    Args:
-        table_name: Name of the theme table
-        search_term: Optional term to filter words (searches lemma and translation)
-        db_path: Path to SQLite database file
-
-    Returns:
-        List of matching word dicts
-    """
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    if search_term:
-        cursor.execute(
-            f"""
-            SELECT id, word, lemma, pos, translation, examples, added_at
-            FROM {table_name}
-            WHERE lemma LIKE ? OR translation LIKE ?
-            ORDER BY lemma
-        """,
-            (f"%{search_term}%", f"%{search_term}%"),
-        )
-    else:
-        cursor.execute(
-            f"""
-            SELECT id, word, lemma, pos, translation, examples, added_at
-            FROM {table_name}
-            ORDER BY lemma
-        """
-        )
-
-    words = []
-    for row in cursor.fetchall():
-        word_dict = dict(row)
-        if word_dict["examples"]:
-            word_dict["examples"] = json.loads(word_dict["examples"])
-        words.append(word_dict)
-
-    conn.close()
-    return words
 
 
 def get_known_lemmas(theme: str, db_path: str = "vocab.db") -> List[str]:
-    """Return list of all lemmas currently in the database."""
+    """Return list of all lemmas currently in the database for a given theme."""
     init_db(db_path)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute(f"SELECT lemma FROM vocabulary WHERE theme = '{theme}'")
+    cursor.execute("SELECT lemma FROM vocabulary WHERE theme = ?", (theme,))
     lemmas = [row[0] for row in cursor.fetchall()]
 
     conn.close()
@@ -370,11 +207,12 @@ def add_words(
     updated_count = 0
 
     for word_data in words:
+        word = word_data["word"]
         lemma = word_data["lemma"]
 
         cursor.execute(
-            "SELECT id, examples FROM vocabulary WHERE lemma = ? AND theme = ?",
-            (lemma, theme),
+            "SELECT id, examples FROM vocabulary WHERE word = ? AND lemma = ? AND theme = ?",
+            (word, lemma, theme),
         )
         existing = cursor.fetchone()
 
@@ -521,9 +359,73 @@ def get_stats(db_path: str = "vocab.db", theme: Optional[str] = None) -> Dict:
     return {"total_words": total_words, "by_pos": pos_counts, "by_theme": theme_counts}
 
 
-def get_source_lang_for_theme(table_name: str, db_path: str = "vocab.db") -> Optional[str]:
-    """Get the source language for a theme table."""
-    theme_info = get_theme_by_table_name(table_name, db_path)
-    if theme_info:
-        return theme_info.get("source_lang")
-    return None
+def get_themes(db_path: str = "vocab.db") -> List[Dict]:
+    """Return all themes (excluding el_pais) with metadata."""
+    init_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT theme, source_lang, target_lang, COUNT(*) as word_count, MIN(added_at) as created_at
+        FROM vocabulary
+        WHERE theme != 'el_pais'
+        GROUP BY theme, source_lang, target_lang
+    """
+    )
+
+    themes = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return themes
+
+
+def search_words(
+    theme: str, search_term: Optional[str] = None, db_path: str = "vocab.db"
+) -> List[Dict]:
+    """
+    Search for words in a theme, optionally filtering by search term.
+
+    Args:
+        theme: Theme name to search in
+        search_term: Optional term to filter words (searches lemma and translation)
+        db_path: Path to SQLite database file
+
+    Returns:
+        List of matching word dicts
+    """
+    init_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    if search_term:
+        cursor.execute(
+            """
+            SELECT id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at
+            FROM vocabulary
+            WHERE theme = ? AND (lemma LIKE ? OR translation LIKE ?)
+            ORDER BY lemma
+        """,
+            (theme, f"%{search_term}%", f"%{search_term}%"),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT id, word, lemma, pos, gender, translation, source_lang, target_lang, examples, source, theme, added_at
+            FROM vocabulary
+            WHERE theme = ?
+            ORDER BY lemma
+        """,
+            (theme,),
+        )
+
+    words = []
+    for row in cursor.fetchall():
+        word_dict = dict(row)
+        if word_dict["examples"]:
+            word_dict["examples"] = json.loads(word_dict["examples"])
+        words.append(word_dict)
+
+    conn.close()
+    return words

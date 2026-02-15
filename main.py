@@ -157,22 +157,31 @@ def cmd_sync(args):
 
         # Sync specific theme
         if args.theme:
-            theme_info = db.get_theme_by_table_name(args.theme)
-            if not theme_info:
+            # Verify theme exists
+            themes = db.get_themes()
+            theme_exists = any(t['theme'] == args.theme for t in themes)
+            if not theme_exists and args.theme != "el_pais":
                 print(f"Error: Theme '{args.theme}' not found")
                 print("\nAvailable themes:")
-                for t in db.get_all_themes():
-                    print(f"  {t['table_name']}: {t['theme_description']}")
+                for t in themes:
+                    print(f"  {t['theme']}")
                 sys.exit(1)
 
-            stats = anki_sync.sync_theme_to_anki(
-                table_name=args.theme,
-                deck_name=theme_info["deck_name"],
-                db_path=args.db,
-                audio_dir=args.audio_dir,
+            # Derive deck name from theme
+            words_in_name = args.theme.split()
+            significant = [w for w in words_in_name if len(w) > 3][:3]
+            deck_name = (
+                "-".join(w.capitalize() for w in significant) if significant else args.theme
             )
 
-            print(f"\nSync complete for {theme_info['deck_name']}!")
+            stats = anki_sync.sync_to_anki(
+                db_path=args.db,
+                audio_dir=args.audio_dir,
+                deck_name=deck_name,
+                theme=args.theme,
+            )
+
+            print(f"\nSync complete for {deck_name}!")
             print(f"  Added: {stats['added']}")
             print(f"  Skipped (already exist): {stats['skipped']}")
             print(f"  Failed: {stats['failed']}")
@@ -258,7 +267,7 @@ def cmd_theme(args):
     """Create or list themed vocabulary lists."""
     # List themes mode
     if args.list:
-        themes = db.get_all_themes()
+        themes = db.get_themes()
         if not themes:
             print("No themes created yet.")
             print("\nCreate one with:")
@@ -269,11 +278,9 @@ def cmd_theme(args):
 
         print(f"\nThemed vocabularies ({len(themes)} themes):\n")
         for theme in themes:
-            print(f"  {theme['theme_description']}")
-            print(f"    Table: {theme['table_name']}")
+            print(f"  {theme['theme']}")
             print(f"    Languages: {theme['source_lang']} -> {theme['target_lang']}")
             print(f"    Words: {theme['word_count']}")
-            print(f"    Deck: {theme['deck_name']}")
             print()
         return
 
@@ -295,8 +302,8 @@ def cmd_theme(args):
     count = args.count
 
     # Check for related themes (unless --force-new)
-    existing_themes = db.get_all_themes()
-    target_table = None
+    existing_themes = db.get_themes()
+    target_theme = None
 
     if not args.force_new and existing_themes:
         print(f"Checking for related themes ({source_lang} -> {target_lang})...")
@@ -305,8 +312,7 @@ def cmd_theme(args):
         )
 
         if related:
-            print(f"\nFound related theme: \"{related['theme_description']}\"")
-            print(f"  Table: {related['table_name']}")
+            print(f"\nFound related theme: \"{related['theme']}\"")
             print(f"  Current words: {related['word_count']}")
             print()
 
@@ -315,39 +321,17 @@ def cmd_theme(args):
                 print("Cancelled.")
                 return
             elif choice == "" or choice == "y" or choice == "yes":
-                target_table = related["table_name"]
-                print(f"\nAdding to existing theme: {related['theme_description']}")
+                target_theme = related["theme"]
+                print(f"\nAdding to existing theme: {related['theme']}")
             else:
                 print("\nCreating new theme...")
 
-    # Create new theme table if needed
-    if target_table is None:
-        table_name = db.sanitize_table_name(theme_prompt)
-
-        # Check if table name already exists
-        existing = db.get_theme_by_table_name(table_name)
-        if existing:
-            # Add suffix to make unique
-            i = 2
-            while db.get_theme_by_table_name(f"{table_name}_{i}"):
-                i += 1
-            table_name = f"{table_name}_{i}"
-
-        # Generate deck name from theme
-        words_in_theme = theme_prompt.split()
-        significant = [w for w in words_in_theme if len(w) > 3][:3]
-        deck_name = (
-            "-".join(w.capitalize() for w in significant) if significant else table_name
-        )
-
-        print(f"\nCreating new theme: {table_name}")
-        db.create_theme_table(
-            table_name, theme_prompt, source_lang, target_lang, deck_name
-        )
-        target_table = table_name
+    # For new themes, just use the theme prompt as the theme name
+    if target_theme is None:
+        target_theme = theme_prompt
 
     # Get known words in the theme
-    known_lemmas = db.get_known_lemmas_from_theme(target_table)
+    known_lemmas = db.get_known_lemmas(theme=target_theme)
     print(f"Existing words in theme: {len(known_lemmas)}")
 
     # Generate vocabulary
@@ -361,8 +345,8 @@ def cmd_theme(args):
             target_lang=target_lang,
             known_words=known_lemmas,
             count=count,
-            get_all_themes_func=db.get_all_themes,
-            search_theme_words_func=db.search_theme_words,
+            get_themes_func=db.get_themes,
+            search_words_func=db.search_words,
         )
     except Exception as e:
         print(f"Error generating vocabulary: {e}")
@@ -372,8 +356,14 @@ def cmd_theme(args):
         print("No words generated.")
         return
 
-    # Add words to theme table
-    new_count, updated_count = db.add_words_to_theme(words, target_table)
+    # Add words to vocabulary table with the theme
+    new_count, updated_count = db.add_words(
+        words,
+        source=None,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        theme=target_theme,
+    )
     print(f"\nAdded {new_count} words ({updated_count} updated with examples)")
 
     # Show generated words
@@ -391,12 +381,16 @@ def cmd_theme(args):
         print(f"Generated {generated} new audio files")
 
     # Show theme summary
-    theme_info = db.get_theme_by_table_name(target_table)
+    total_words = len(db.get_known_lemmas(theme=target_theme))
+    words_in_name = target_theme.split()
+    significant = [w for w in words_in_name if len(w) > 3][:3]
+    deck_name = (
+        "-".join(w.capitalize() for w in significant) if significant else target_theme
+    )
     print("\nTheme summary:")
-    print(f"  Table: {target_table}")
-    if theme_info:
-        print(f"  Total words: {theme_info['word_count']}")
-        print(f"  Deck name: {theme_info['deck_name']}")
+    print(f"  Theme: {target_theme}")
+    print(f"  Total words: {total_words}")
+    print(f"  Deck name: {deck_name}")
 
 
 def main():
@@ -463,7 +457,7 @@ def main():
         "--all", action="store_true", help="Sync all tables (main + all themes)"
     )
     sync_parser.add_argument(
-        "--theme", help="Sync specific theme table only (e.g., vocab_cooking)"
+        "--theme", help="Sync specific theme only (by theme name)"
     )
     sync_parser.add_argument(
         "--deck",

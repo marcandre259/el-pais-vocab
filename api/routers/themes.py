@@ -1,15 +1,13 @@
 import asyncio
-from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from api.config import settings
 from api.schemas.themes import (
     Theme,
-    ThemeWord,
     ThemeWithWords,
     ThemeCreateRequest,
-    ThemeCreateResult,
 )
+from api.schemas.vocabulary import VocabularyWord
 from api.schemas.tasks import TaskStatus, TaskType
 from api.services.task_manager import task_manager
 
@@ -21,15 +19,12 @@ router = APIRouter(prefix="/themes", tags=["themes"])
 @router.get("", response_model=list[Theme])
 def list_themes():
     """List all registered themes."""
-    themes = db.get_all_themes(settings.db_path)
+    themes = db.get_themes(settings.db_path)
     return [
         Theme(
-            id=t["id"],
-            table_name=t["table_name"],
-            theme_description=t["theme_description"],
+            theme=t["theme"],
             source_lang=t["source_lang"],
             target_lang=t["target_lang"],
-            deck_name=t["deck_name"],
             created_at=str(t.get("created_at")) if t.get("created_at") else None,
             word_count=t.get("word_count", 0),
         )
@@ -37,34 +32,39 @@ def list_themes():
     ]
 
 
-@router.get("/{table_name}", response_model=ThemeWithWords)
-def get_theme(table_name: str):
+@router.get("/{theme_name}", response_model=ThemeWithWords)
+def get_theme(theme_name: str):
     """Get a theme with all its vocabulary words."""
-    theme_info = db.get_theme_by_table_name(table_name, settings.db_path)
-    if not theme_info:
+    words = db.get_all_words(settings.db_path, theme=theme_name)
+
+    if not words:
         raise HTTPException(status_code=404, detail="Theme not found")
 
-    words = db.get_all_words_from_theme(table_name, settings.db_path)
+    # Get theme metadata from get_themes
+    themes = db.get_themes(settings.db_path)
+    theme_info = next((t for t in themes if t["theme"] == theme_name), None)
 
     theme = Theme(
-        id=theme_info["id"],
-        table_name=theme_info["table_name"],
-        theme_description=theme_info["theme_description"],
-        source_lang=theme_info["source_lang"],
-        target_lang=theme_info["target_lang"],
-        deck_name=theme_info["deck_name"],
-        created_at=str(theme_info.get("created_at")) if theme_info.get("created_at") else None,
-        word_count=theme_info.get("word_count", 0),
+        theme=theme_name,
+        source_lang=theme_info["source_lang"] if theme_info else words[0].get("source_lang", ""),
+        target_lang=theme_info["target_lang"] if theme_info else words[0].get("target_lang", ""),
+        created_at=str(theme_info.get("created_at")) if theme_info and theme_info.get("created_at") else None,
+        word_count=theme_info.get("word_count", len(words)) if theme_info else len(words),
     )
 
     theme_words = [
-        ThemeWord(
+        VocabularyWord(
             id=w["id"],
             word=w["word"],
             lemma=w["lemma"],
             pos=w.get("pos"),
+            gender=w.get("gender"),
             translation=w["translation"],
+            source_lang=w.get("source_lang"),
+            target_lang=w.get("target_lang"),
             examples=w.get("examples", []) or [],
+            source=w.get("source"),
+            theme=w["theme"],
             added_at=str(w.get("added_at")) if w.get("added_at") else None,
         )
         for w in words
@@ -78,11 +78,10 @@ def _create_theme_vocabulary(
     source_lang: str,
     target_lang: str,
     word_count: int,
-    deck_name: Optional[str],
 ) -> dict:
     """Synchronous function to create themed vocabulary."""
     # Check for related existing theme
-    existing_themes = db.get_all_themes(settings.db_path)
+    existing_themes = db.get_themes(settings.db_path)
     related_theme = llm.detect_related_theme(
         theme_prompt, source_lang, target_lang, existing_themes
     )
@@ -91,23 +90,12 @@ def _create_theme_vocabulary(
     related_theme_name = None
 
     if related_theme:
-        # Add to existing theme
-        table_name = related_theme["table_name"]
+        target_theme = related_theme["theme"]
         is_related = True
-        related_theme_name = related_theme["theme_description"]
-        known_words = db.get_known_lemmas_from_theme(table_name, settings.db_path)
+        related_theme_name = related_theme["theme"]
+        known_words = db.get_known_lemmas(theme=target_theme, db_path=settings.db_path)
     else:
-        # Create new theme
-        table_name = db.sanitize_table_name(theme_prompt)
-        actual_deck_name = deck_name or theme_prompt.title().replace(" ", "-")
-        db.create_theme_table(
-            table_name=table_name,
-            theme_description=theme_prompt,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            deck_name=actual_deck_name,
-            db_path=settings.db_path,
-        )
+        target_theme = theme_prompt
         known_words = []
 
     # Generate vocabulary using LLM with tool use
@@ -117,20 +105,24 @@ def _create_theme_vocabulary(
         target_lang=target_lang,
         known_words=known_words,
         count=word_count,
-        get_all_themes_func=lambda: db.get_all_themes(settings.db_path),
-        search_theme_words_func=lambda tn, st=None: db.search_theme_words(
-            tn, st, settings.db_path
+        get_themes_func=lambda: db.get_themes(settings.db_path),
+        search_words_func=lambda theme, st=None: db.search_words(
+            theme, st, settings.db_path
         ),
     )
 
-    # Add words to theme table
-    new_count, updated_count = db.add_words_to_theme(
-        words=words, table_name=table_name, db_path=settings.db_path
+    # Add words to vocabulary table
+    new_count, updated_count = db.add_words(
+        words=words,
+        source=None,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        theme=target_theme,
+        db_path=settings.db_path,
     )
 
     return {
-        "table_name": table_name,
-        "theme_description": theme_prompt,
+        "theme": target_theme,
         "new_words": new_count,
         "updated_words": updated_count,
         "is_related_theme": is_related,
@@ -156,7 +148,6 @@ async def create_theme(request: ThemeCreateRequest):
             request.source_lang,
             request.target_lang,
             request.word_count,
-            request.deck_name,
         )
     )
 
