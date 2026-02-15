@@ -59,7 +59,7 @@ class TestGenerateAudio:
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
 
-    @patch("audio.gTTS")
+    @patch("core.audio.gTTS")
     def test_generates_audio_file(self, mock_gtts, temp_audio_dir):
         """Test that audio file is generated."""
         mock_tts = MagicMock()
@@ -71,7 +71,7 @@ class TestGenerateAudio:
         mock_gtts.assert_called_once_with(text="querer", lang="es", slow=False)
         mock_tts.save.assert_called_once()
 
-    @patch("audio.gTTS")
+    @patch("core.audio.gTTS")
     def test_uses_language_name(self, mock_gtts, temp_audio_dir):
         """Test that language name is converted to code."""
         mock_tts = MagicMock()
@@ -81,7 +81,7 @@ class TestGenerateAudio:
 
         mock_gtts.assert_called_once_with(text="koken", lang="nl", slow=False)
 
-    @patch("audio.gTTS")
+    @patch("core.audio.gTTS")
     def test_skips_existing_file(self, mock_gtts, temp_audio_dir):
         """Test that existing files are not regenerated."""
         # Create existing file
@@ -93,7 +93,7 @@ class TestGenerateAudio:
         assert result == str(existing_file)
         mock_gtts.assert_not_called()
 
-    @patch("audio.gTTS")
+    @patch("core.audio.gTTS")
     def test_creates_audio_directory(self, mock_gtts, temp_audio_dir):
         """Test that audio directory is created if not exists."""
         mock_tts = MagicMock()
@@ -104,7 +104,7 @@ class TestGenerateAudio:
 
         assert os.path.exists(new_dir)
 
-    @patch("audio.gTTS")
+    @patch("core.audio.gTTS")
     def test_handles_gtts_error(self, mock_gtts, temp_audio_dir):
         """Test that gTTS errors are handled gracefully."""
         mock_gtts.side_effect = Exception("API error")
@@ -123,8 +123,8 @@ class TestGenerateAllAudio:
         with tempfile.TemporaryDirectory() as tmpdir:
             yield tmpdir
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_generates_multiple_files(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test generating audio for multiple words."""
         mock_tts = MagicMock()
@@ -139,8 +139,8 @@ class TestGenerateAllAudio:
         assert skipped == 0
         assert mock_gtts.call_count == 3
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_skips_existing_files(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test that existing files are skipped."""
         mock_tts = MagicMock()
@@ -159,8 +159,8 @@ class TestGenerateAllAudio:
         assert skipped == 1
         assert mock_gtts.call_count == 1
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_uses_language_parameter(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test that language parameter is used."""
         mock_tts = MagicMock()
@@ -171,8 +171,8 @@ class TestGenerateAllAudio:
 
         mock_gtts.assert_called_with(text="koken", lang="nl", slow=False)
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_adds_delay_between_requests(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test that delay is added between TTS requests."""
         mock_tts = MagicMock()
@@ -184,8 +184,8 @@ class TestGenerateAllAudio:
         # Should sleep between each word (3 words = 3 sleeps)
         assert mock_sleep.call_count == 3
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_continues_on_error(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test that generation continues even if one word fails."""
         mock_tts = MagicMock()
@@ -206,8 +206,8 @@ class TestGenerateAllAudio:
         assert generated == 2
         assert skipped == 0
 
-    @patch("audio.gTTS")
-    @patch("audio.time.sleep")
+    @patch("core.audio.gTTS")
+    @patch("core.audio.time.sleep")
     def test_empty_list(self, mock_sleep, mock_gtts, temp_audio_dir):
         """Test handling empty lemma list."""
         generated, skipped = audio.generate_all_audio(
