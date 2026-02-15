@@ -15,6 +15,15 @@ source .venv/bin/activate
 # Run the CLI
 python main.py <command>
 
+# CLI subcommands:
+#   add <url>     - Extract vocabulary from El Pais article
+#   theme <desc>  - Generate themed vocabulary (any language pair)
+#   list          - List vocabulary words
+#   sync          - Sync to Anki (requires Anki running with AnkiConnect)
+#   stats         - Show database statistics
+#   audio         - Generate audio files for all words
+#   export        - Export to CSV
+
 # Run the API server
 uvicorn api.app:app --reload
 
@@ -42,7 +51,9 @@ core/            # Core business logic modules
 api/             # FastAPI REST API
   app.py         # FastAPI application with CORS middleware
   config.py      # Pydantic settings (env vars prefixed ELPAIS_)
-  routers/       # API route handlers
+  routers/       # API route handlers (vocabulary, articles, themes, audio, sync, tasks)
+  schemas/       # Pydantic request/response models
+  services/      # Background task management
 ```
 
 ## Data Flow
@@ -57,6 +68,7 @@ api/             # FastAPI REST API
 - **Duplicate handling**: Existing lemmas get updated with new examples (max 5 per word).
 - **Language flexibility**: Article extraction defaults to Spanish->French; themed vocabulary supports any language pair via `--source` and `--target` flags.
 - **Audio generation**: Uses gTTS with language code mapping (supports 30+ languages). Rate-limited with 0.5s delay between files.
+- **Testing**: Tests use pytest fixtures with temporary SQLite databases (`temp_db` fixture in conftest).
 
 ## Environment
 

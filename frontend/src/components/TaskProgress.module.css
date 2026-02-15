@@ -1,0 +1,158 @@
+.container {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 4px;
+}
+
+.container.success {
+  border-left-color: var(--color-success);
+  background-color: rgba(34, 139, 34, 0.04);
+}
+
+.container.error {
+  border-left-color: var(--color-danger);
+  background-color: rgba(201, 35, 45, 0.04);
+}
+
+.content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.spinner {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-top: 0.125rem;
+}
+
+.checkmark {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  background-color: var(--color-success);
+  border-radius: 50%;
+  position: relative;
+  margin-top: 0.125rem;
+}
+
+.checkmark::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.errorIcon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  background-color: var(--color-danger);
+  border-radius: 50%;
+  position: relative;
+  margin-top: 0.125rem;
+}
+
+.errorIcon::before,
+.errorIcon::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 5px;
+  width: 2px;
+  height: 10px;
+  background-color: white;
+}
+
+.errorIcon::before {
+  transform: rotate(45deg);
+}
+
+.errorIcon::after {
+  transform: rotate(-45deg);
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.progress {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0.25rem 0 0;
+}
+
+.result {
+  font-size: 0.875rem;
+  color: var(--color-success);
+  margin: 0.25rem 0 0;
+}
+
+.container.error .result,
+.errorMessage {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0;
+}
+
+.dismiss {
+  flex-shrink: 0;
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.dismiss:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.syncButton {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.syncButton:hover {
+  background-color: var(--color-primary-hover);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
