@@ -11,6 +11,7 @@ class TaskType(str, Enum):
     THEME_CREATE = "theme_create"
     AUDIO_GENERATE = "audio_generate"
     ANKI_SYNC = "anki_sync"
+    MANUAL_ENTRY = "manual_entry"
 
 
 class TaskStatusEnum(str, Enum):

@@ -1,5 +1,5 @@
 // Task types
-export type TaskType = 'article_extract' | 'theme_create' | 'audio_generate' | 'anki_sync';
+export type TaskType = 'article_extract' | 'theme_create' | 'audio_generate' | 'anki_sync' | 'manual_entry';
 export type TaskStatusEnum = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export interface TaskStatus {
@@ -85,6 +85,13 @@ export interface ThemeCreateRequest {
   deck_name?: string;
 }
 
+export interface ManualEntryRequest {
+  words: string[];
+  source_lang?: string;
+  target_lang?: string;
+  theme: string;
+}
+
 // Result types
 export interface ArticleExtractResult {
   new_words: number;
@@ -103,8 +110,8 @@ export interface ThemeCreateResult {
 
 // Sync types
 export interface SyncStatus {
-  anki_connected: boolean;
-  error?: string;
+  connected: boolean;
+  message: string;
 }
 
 export interface SyncRequest {

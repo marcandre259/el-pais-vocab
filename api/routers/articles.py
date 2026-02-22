@@ -24,7 +24,7 @@ def _extract_article_vocabulary(
     article_text = scraper.get_article_text(url, browser)
 
     # Get known words to exclude
-    known_words = db.get_known_lemmas("el_pais", settings.db_path)
+    known_words = db.get_known_words("el_pais", settings.db_path)
 
     # Extract vocabulary using LLM
     words = llm.select_and_translate(

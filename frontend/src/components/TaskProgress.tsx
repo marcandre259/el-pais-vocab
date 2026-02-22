@@ -1,29 +1,25 @@
-import type { TaskStatus, ThemeCreateResult } from '../api/types';
+import type { TaskStatus } from '../api/types';
 import styles from './TaskProgress.module.css';
 
 interface TaskProgressProps {
   task: TaskStatus;
   onDismiss?: () => void;
-  onSyncRequest?: (themeName?: string) => void;
 }
 
 const TASK_LABELS: Record<string, string> = {
   article_extract: 'Extracting vocabulary',
   theme_create: 'Generating vocabulary',
+  manual_entry: 'Translating words',
   audio_generate: 'Generating audio',
   anki_sync: 'Syncing to Anki',
 };
 
-export function TaskProgress({ task, onDismiss, onSyncRequest }: TaskProgressProps) {
+export function TaskProgress({ task, onDismiss }: TaskProgressProps) {
   const isRunning = task.status === 'pending' || task.status === 'in_progress';
   const isComplete = task.status === 'completed';
   const isFailed = task.status === 'failed';
 
   const label = TASK_LABELS[task.type] || 'Processing';
-
-  const showSyncButton = isComplete &&
-    (task.type === 'article_extract' || task.type === 'theme_create') &&
-    onSyncRequest;
 
   return (
     <div
@@ -48,16 +44,6 @@ export function TaskProgress({ task, onDismiss, onSyncRequest }: TaskProgressPro
           )}
           {isFailed && task.error && (
             <p className={styles.errorMessage}>{task.error}</p>
-          )}
-          {showSyncButton && (
-            <button className={styles.syncButton} onClick={() => {
-              const themeName = task.type === 'theme_create'
-                ? (task.result as ThemeCreateResult)?.theme
-                : undefined;
-              onSyncRequest?.(themeName);
-            }}>
-              Sync to Anki
-            </button>
           )}
         </div>
       </div>
@@ -86,7 +72,7 @@ function formatResult(task: TaskStatus): string {
   const result = task.result as Record<string, unknown> | undefined;
   if (!result) return '';
 
-  if (task.type === 'article_extract' || task.type === 'theme_create') {
+  if (task.type === 'article_extract' || task.type === 'theme_create' || task.type === 'manual_entry') {
     const newWords = result.new_words as number;
     const updatedWords = result.updated_words as number;
     const parts: string[] = [];

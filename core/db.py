@@ -31,18 +31,18 @@ def init_db(db_path: str = "vocab.db") -> None:
                 source TEXT,
                 theme TEXT NOT NULL,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(word, lemma, theme)
+                UNIQUE(word, theme)
             )
         """
         )
         conn.commit()
     else:
-        # Check if constraint needs migration from UNIQUE(lemma) to UNIQUE(word, lemma, theme)
+        # Check if constraint needs migration to UNIQUE(word, theme)
         cursor.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='vocabulary'"
         )
         create_sql = cursor.fetchone()[0]
-        if "UNIQUE(word, lemma, theme)" not in create_sql:
+        if "UNIQUE(word, theme)" not in create_sql or "UNIQUE(word, lemma, theme)" in create_sql:
             _migrate_unique_constraint(conn)
 
     conn.close()
@@ -52,7 +52,7 @@ def init_db(db_path: str = "vocab.db") -> None:
 
 
 def _migrate_unique_constraint(conn: sqlite3.Connection) -> None:
-    """Migrate vocabulary table from UNIQUE(lemma) to UNIQUE(word, lemma, theme)."""
+    """Migrate vocabulary table to UNIQUE(word, theme)."""
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -69,7 +69,7 @@ def _migrate_unique_constraint(conn: sqlite3.Connection) -> None:
             source TEXT,
             theme TEXT NOT NULL,
             added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(word, lemma, theme)
+            UNIQUE(word, theme)
         )
     """
     )
@@ -127,10 +127,10 @@ def migrate_themes_to_vocabulary(db_path: str = "vocab.db") -> None:
         rows = cursor.fetchall()
 
         for row in rows:
-            # Check if (word, lemma, theme) already exists
+            # Check if (word, theme) already exists
             cursor.execute(
-                "SELECT id FROM vocabulary WHERE word = ? AND lemma = ? AND theme = ?",
-                (row["word"], row["lemma"], theme_description),
+                "SELECT id FROM vocabulary WHERE word = ? AND theme = ?",
+                (row["word"], theme_description),
             )
             if cursor.fetchone():
                 continue
@@ -164,17 +164,17 @@ def migrate_themes_to_vocabulary(db_path: str = "vocab.db") -> None:
     conn.close()
 
 
-def get_known_lemmas(theme: str, db_path: str = "vocab.db") -> List[str]:
-    """Return list of all lemmas currently in the database for a given theme."""
+def get_known_words(theme: str, db_path: str = "vocab.db") -> List[str]:
+    """Return list of all word forms currently in the database for a given theme."""
     init_db(db_path)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT lemma FROM vocabulary WHERE theme = ?", (theme,))
-    lemmas = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT word FROM vocabulary WHERE theme = ?", (theme,))
+    words = [row[0] for row in cursor.fetchall()]
 
     conn.close()
-    return lemmas
+    return words
 
 
 def add_words(
@@ -208,11 +208,10 @@ def add_words(
 
     for word_data in words:
         word = word_data["word"]
-        lemma = word_data["lemma"]
 
         cursor.execute(
-            "SELECT id, examples FROM vocabulary WHERE word = ? AND lemma = ? AND theme = ?",
-            (word, lemma, theme),
+            "SELECT id, examples FROM vocabulary WHERE word = ? AND theme = ?",
+            (word, theme),
         )
         existing = cursor.fetchone()
 

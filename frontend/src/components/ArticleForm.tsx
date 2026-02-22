@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { extractArticle } from '../api/client';
 import { Button, Input, Select, Card, CardHeader } from './ui';
 import type { ArticleExtractRequest } from '../api/types';
+import { LANGUAGE_OPTIONS } from '../constants';
 import styles from './ArticleForm.module.css';
 
 interface ArticleFormProps {
@@ -16,15 +17,6 @@ const BROWSER_OPTIONS = [
   { value: 'chrome', label: 'Chrome' },
   { value: 'edge', label: 'Edge' },
   { value: 'opera', label: 'Opera' },
-];
-
-const LANGUAGE_OPTIONS = [
-  { value: 'Spanish', label: 'Spanish' },
-  { value: 'French', label: 'French' },
-  { value: 'Italian', label: 'Italian' },
-  { value: 'Portuguese', label: 'Portuguese' },
-  { value: 'German', label: 'German' },
-  { value: 'English', label: 'English' },
 ];
 
 export function ArticleForm({ onTaskStart, disabled }: ArticleFormProps) {

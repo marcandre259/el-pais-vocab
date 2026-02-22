@@ -153,7 +153,7 @@ class TestDetectRelatedTheme:
         mock_anthropic_class.return_value = mock_client
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="vocab_cooking")]
+        mock_response.content = [MagicMock(text="cooking vocabulary")]
         mock_client.messages.create.return_value = mock_response
 
         existing_themes = [
@@ -317,8 +317,8 @@ class TestGenerateThemedVocabulary:
             target_lang="English",
             known_words=[],
             count=1,
-            get_all_themes_func=mock_get_all_themes,
-            search_theme_words_func=mock_search_theme_words,
+            get_themes_func=mock_get_all_themes,
+            search_words_func=mock_search_theme_words,
         )
 
         assert len(result) == 1
@@ -375,8 +375,8 @@ class TestGenerateThemedVocabulary:
             target_lang="English",
             known_words=[],
             count=1,
-            get_all_themes_func=mock_get_all_themes,
-            search_theme_words_func=mock_search_theme_words,
+            get_themes_func=mock_get_all_themes,
+            search_words_func=mock_search_theme_words,
         )
 
         assert len(result) == 1

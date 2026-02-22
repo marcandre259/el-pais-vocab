@@ -1,36 +1,14 @@
-import { useState } from 'react';
 import { ArticleForm } from '../components/ArticleForm';
 import { ThemeForm } from '../components/ThemeForm';
-import { TaskProgress } from '../components/TaskProgress';
-import { useTask, isTaskRunning } from '../hooks/useTask';
-import { syncToAnki } from '../api/client';
+import { ManualEntryForm } from '../components/ManualEntryForm';
 import styles from './Home.module.css';
 
-export function Home() {
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const { data: taskStatus } = useTask(activeTaskId);
+interface HomeProps {
+  onTaskStart: (taskId: string) => void;
+  disabled?: boolean;
+}
 
-  const handleTaskStart = (taskId: string) => {
-    setActiveTaskId(taskId);
-  };
-
-  const handleDismiss = () => {
-    setActiveTaskId(null);
-  };
-
-  const handleSyncRequest = async (themeName?: string) => {
-    try {
-      const response = themeName
-        ? await syncToAnki({ theme_name: themeName, include_main: false, include_themes: false })
-        : await syncToAnki({ include_main: true, include_themes: true });
-      setActiveTaskId(response.task_id);
-    } catch (error) {
-      console.error('Failed to start sync:', error);
-    }
-  };
-
-  const isRunning = taskStatus && isTaskRunning(taskStatus);
-
+export function Home({ onTaskStart, disabled }: HomeProps) {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -40,19 +18,10 @@ export function Home() {
         </p>
       </header>
 
-      {taskStatus && (
-        <div className={styles.taskProgress}>
-          <TaskProgress
-            task={taskStatus}
-            onDismiss={handleDismiss}
-            onSyncRequest={handleSyncRequest}
-          />
-        </div>
-      )}
-
       <div className={styles.forms}>
-        <ArticleForm onTaskStart={handleTaskStart} disabled={isRunning} />
-        <ThemeForm onTaskStart={handleTaskStart} disabled={isRunning} />
+        <ArticleForm onTaskStart={onTaskStart} disabled={disabled} />
+        <ThemeForm onTaskStart={onTaskStart} disabled={disabled} />
+        <ManualEntryForm onTaskStart={onTaskStart} disabled={disabled} />
       </div>
     </div>
   );

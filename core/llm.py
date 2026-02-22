@@ -128,6 +128,81 @@ def select_and_translate(
     return output
 
 
+def translate_words(
+    words: List[str],
+    source_lang: str,
+    target_lang: str,
+    theme_context: str,
+) -> List[Dict]:
+    """
+    Translate a list of raw words using Claude with structured output.
+
+    Args:
+        words: List of raw word strings (e.g., ["koken", "bakken"])
+        source_lang: Source language (e.g., "Dutch")
+        target_lang: Target language (e.g., "English")
+        theme_context: Theme name for context (e.g., "cooking vocabulary")
+
+    Returns:
+        List of dicts with keys: word, lemma, pos, translation, gender, examples
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY not found in environment")
+
+    client = Anthropic(api_key=api_key)
+
+    system_prompt = f"""You are a {source_lang}-{target_lang} vocabulary assistant. Given a list of {source_lang} words, provide detailed vocabulary entries translated to {target_lang}.
+
+The words belong to the theme: "{theme_context}"
+
+Rules:
+- Return an entry for each word provided
+- For verbs: "word" = the form given, "lemma" = infinitive/base form
+- For nouns/adjectives: "word" = the form given, "lemma" = canonical form
+- pos is Part of Speech
+- gender is a pronoun or gender depending on context/word
+- Translation is the translated word and translated lemma (when useful) in parenthesis
+- Translation MUST BE IN {target_lang}
+- Include 1-2 example sentences in {source_lang} for each word
+- The translated lemma helps contextualize a word, but it is not always necessary."""
+
+    words_str = ", ".join(words)
+    user_message = f"Translate these {source_lang} words: {words_str}"
+
+    count = len(words)
+    max_tokens = int(count * 150) + 1000
+
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            response = client.messages.parse(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+                output_format=SelectTranslateOutputList,
+            )
+
+            parsed_response = response.parsed_output
+            break
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                raise ValueError(e)
+            else:
+                continue
+
+    if isinstance(parsed_response, SelectTranslateOutputList):
+        output = parsed_response.model_dump()
+        output = output.get("output_list", None)
+        if output is None:
+            raise ValueError("Parsed response does not have a output_list key")
+    else:
+        raise ValueError("Parsed response is not in the correct format")
+
+    return output
+
+
 # ============ Themed Vocabulary Functions ============
 
 

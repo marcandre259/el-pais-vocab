@@ -166,15 +166,15 @@ def ensure_note_type_exists() -> None:
         "cardTemplates": [
             {
                 "Name": "Source to Target",
-                "Front": """<div class="word">{{Lemma}}</div>
+                "Front": """<div class="word">{{WordAsFound}}</div>
 <div class="pos">({{PartOfSpeech}})</div>
 {{Audio}}""",
                 "Back": """{{FrontSide}}
 <hr id="answer">
 <div class="translation">{{Translation}}</div>
-{{#WordAsFound}}
-<div class="context">Form found: <i>{{WordAsFound}}</i></div>
-{{/WordAsFound}}
+{{#Lemma}}
+<div class="context">Lemma: <i>{{Lemma}}</i></div>
+{{/Lemma}}
 {{#Example1}}
 <div class="example">• {{Example1}}</div>
 {{/Example1}}
@@ -195,20 +195,20 @@ def ensure_note_type_exists() -> None:
     print(f"Created note type: {MODEL_NAME}")
 
 
-def note_exists(lemma: str, deck_name: str) -> bool:
+def note_exists(word: str, deck_name: str) -> bool:
     """
-    Check if a note with the given lemma already exists in the deck.
+    Check if a note with the given word form already exists in the deck.
 
     Args:
-        lemma: The Spanish lemma to search for
+        word: The word form as found (e.g., conjugated verb) to search for
         deck_name: Name of the deck to search in
 
     Returns:
         True if note exists, False otherwise
     """
     # Escape special characters for Anki search
-    escaped_lemma = lemma.replace('"', '\\"')
-    query = f'deck:"{deck_name}" "Lemma:{escaped_lemma}"'
+    escaped_word = word.replace('"', '\\"')
+    query = f'deck:"{deck_name}" "WordAsFound:{escaped_word}"'
 
     try:
         note_ids = _invoke_anki("findNotes", query=query)
@@ -299,7 +299,8 @@ def create_note(
         "modelName": MODEL_NAME,
         "fields": fields,
         "options": {
-            "allowDuplicate": False
+            "allowDuplicate": True,
+            "duplicateScope": "deck",
         },
         "tags": tags or default_tags or ["vocabulary"]
     }
@@ -363,17 +364,17 @@ def sync_to_anki(
     print(f"\nSyncing {len(words)} words to Anki deck '{deck_name}'...")
 
     for word in words:
-        lemma = word['lemma']
+        word_form = word['word']
 
-        # Check if note already exists
-        if note_exists(lemma, deck_name):
+        # Check if note already exists (by word form, not lemma)
+        if note_exists(word_form, deck_name):
             stats['skipped'] += 1
             continue
 
         # Create new note
         if create_note(word, deck_name, audio_dir):
             stats['added'] += 1
-            print(f"  Added: {lemma}")
+            print(f"  Added: {word_form}")
         else:
             stats['failed'] += 1
 

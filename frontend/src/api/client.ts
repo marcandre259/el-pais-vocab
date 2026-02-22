@@ -6,6 +6,7 @@ import type {
   Theme,
   ArticleExtractRequest,
   ThemeCreateRequest,
+  ManualEntryRequest,
   SyncStatus,
   SyncRequest,
 } from './types';
@@ -93,6 +94,16 @@ export async function createTheme(
   data: ThemeCreateRequest
 ): Promise<TaskStatus> {
   return request<TaskStatus>('/themes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Manual entry
+export async function translateManualWords(
+  data: ManualEntryRequest
+): Promise<TaskStatus> {
+  return request<TaskStatus>('/manual/translate', {
     method: 'POST',
     body: JSON.stringify(data),
   });

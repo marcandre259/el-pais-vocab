@@ -4,6 +4,7 @@ from .themes import router as themes_router
 from .audio import router as audio_router
 from .sync import router as sync_router
 from .tasks import router as tasks_router
+from .manual_entry import router as manual_entry_router
 
 __all__ = [
     "vocabulary_router",
@@ -12,4 +13,5 @@ __all__ = [
     "audio_router",
     "sync_router",
     "tasks_router",
+    "manual_entry_router",
 ]

@@ -22,14 +22,14 @@ def cmd_add(args):
     word_count = len(article_text.split())
     print(f"Found {word_count} words in article")
 
-    known_lemmas = db.get_known_lemmas(theme="el_pais")
-    print(f"Known vocabulary: {len(known_lemmas)} lemmas")
+    known_words = db.get_known_words(theme="el_pais")
+    print(f"Known vocabulary: {len(known_words)} words")
 
     print(f"Asking Claude to select {args.count} new words...")
     try:
         words = llm.select_and_translate(
             article_text=article_text,
-            known_words=known_lemmas,
+            known_words=known_words,
             target_lang=target_lang,
             source_lang=source_lang,
             user_prompt=args.prompt,
@@ -54,7 +54,7 @@ def cmd_add(args):
 
     if new_count > 0:
         print("Generating audio pronunciations...")
-        new_lemmas = [w["lemma"] for w in words if w["lemma"] not in known_lemmas]
+        new_lemmas = [w["lemma"] for w in words if w["word"] not in known_words]
         generated, skipped = audio.generate_all_audio(new_lemmas, lang=source_lang)
         print(f"Generated {generated} new audio files")
 
@@ -331,8 +331,8 @@ def cmd_theme(args):
         target_theme = theme_prompt
 
     # Get known words in the theme
-    known_lemmas = db.get_known_lemmas(theme=target_theme)
-    print(f"Existing words in theme: {len(known_lemmas)}")
+    known_words = db.get_known_words(theme=target_theme)
+    print(f"Existing words in theme: {len(known_words)}")
 
     # Generate vocabulary
     print(f"\nGenerating {count} {source_lang} vocabulary words...")
@@ -343,7 +343,7 @@ def cmd_theme(args):
             theme_prompt=theme_prompt,
             source_lang=source_lang,
             target_lang=target_lang,
-            known_words=known_lemmas,
+            known_words=known_words,
             count=count,
             get_themes_func=db.get_themes,
             search_words_func=db.search_words,
@@ -376,12 +376,12 @@ def cmd_theme(args):
     # Generate audio for new words (use source language for pronunciation)
     if new_count > 0:
         print("\nGenerating audio pronunciations...")
-        new_lemmas = [w["lemma"] for w in words if w["lemma"] not in known_lemmas]
+        new_lemmas = [w["lemma"] for w in words if w["word"] not in known_words]
         generated, _ = audio.generate_all_audio(new_lemmas, lang=source_lang)
         print(f"Generated {generated} new audio files")
 
     # Show theme summary
-    total_words = len(db.get_known_lemmas(theme=target_theme))
+    total_words = len(db.get_known_words(theme=target_theme))
     words_in_name = target_theme.split()
     significant = [w for w in words_in_name if len(w) > 3][:3]
     deck_name = (

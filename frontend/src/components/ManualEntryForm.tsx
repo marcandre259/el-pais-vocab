@@ -1,51 +1,47 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createTheme } from '../api/client';
-import { Button, Select, Input, Card, CardHeader } from './ui';
+import { translateManualWords } from '../api/client';
+import { Button, Select, Card, CardHeader } from './ui';
 import { ThemeSelector } from './ThemeSelector';
 import { LANGUAGE_OPTIONS } from '../constants';
-import type { ThemeCreateRequest, Theme } from '../api/types';
-import styles from './ThemeForm.module.css';
+import type { ManualEntryRequest, Theme } from '../api/types';
+import styles from './ManualEntryForm.module.css';
 
-interface ThemeFormProps {
+interface ManualEntryFormProps {
   onTaskStart: (taskId: string) => void;
   disabled?: boolean;
 }
 
-export function ThemeForm({ onTaskStart, disabled }: ThemeFormProps) {
-  const [themePrompt, setThemePrompt] = useState('');
+export function ManualEntryForm({ onTaskStart, disabled }: ManualEntryFormProps) {
+  const [theme, setTheme] = useState('');
+  const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null);
+  const [wordsText, setWordsText] = useState('');
   const [sourceLang, setSourceLang] = useState('Dutch');
   const [targetLang, setTargetLang] = useState('English');
-  const [wordCount, setWordCount] = useState('20');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null);
 
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: createTheme,
+    mutationFn: translateManualWords,
     onSuccess: (data) => {
       onTaskStart(data.task_id);
-      setThemePrompt('');
-      setSelectedTheme(null);
+      setWordsText('');
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['themes'] });
     },
     onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      setError(err instanceof Error ? err.message : 'Translation failed');
     },
   });
 
-  const handleThemeSelect = (theme: Theme | null) => {
-    setSelectedTheme(theme);
-    if (theme) {
-      setSourceLang(theme.source_lang);
-      setTargetLang(theme.target_lang);
-    } else {
-      setSourceLang('Dutch');
-      setTargetLang('English');
+  const handleThemeSelect = (t: Theme | null) => {
+    setSelectedTheme(t);
+    if (t) {
+      setSourceLang(t.source_lang);
+      setTargetLang(t.target_lang);
     }
   };
 
@@ -53,16 +49,26 @@ export function ThemeForm({ onTaskStart, disabled }: ThemeFormProps) {
     e.preventDefault();
     setError(null);
 
-    if (!themePrompt.trim()) {
-      setError('Please enter a theme');
+    if (!theme.trim()) {
+      setError('Please select or enter a theme');
       return;
     }
 
-    const request: ThemeCreateRequest = {
-      theme_prompt: themePrompt.trim(),
+    const words = wordsText
+      .split(/[,\n]+/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+
+    if (words.length === 0) {
+      setError('Please enter at least one word');
+      return;
+    }
+
+    const request: ManualEntryRequest = {
+      words,
       source_lang: sourceLang,
       target_lang: targetLang,
-      word_count: parseInt(wordCount, 10) || 20,
+      theme: theme.trim(),
     };
 
     mutation.mutate(request);
@@ -73,20 +79,30 @@ export function ThemeForm({ onTaskStart, disabled }: ThemeFormProps) {
   return (
     <Card variant="elevated" padding="lg">
       <CardHeader
-        title="Generate Themed Vocabulary"
-        subtitle="Create vocabulary lists for any topic and language pair"
+        title="Add Words Manually"
+        subtitle="Translate specific words and add them to a theme"
       />
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <ThemeSelector
-          value={themePrompt}
-          onChange={setThemePrompt}
+          value={theme}
+          onChange={setTheme}
           onThemeSelect={handleThemeSelect}
           selectedTheme={selectedTheme}
           disabled={isLoading}
         />
 
-        {error && !themePrompt.trim() && <p className={styles.error}>{error}</p>}
+        <div>
+          <p className={styles.textareaLabel}>Words</p>
+          <textarea
+            className={styles.textarea}
+            placeholder="Enter words separated by commas or new lines"
+            value={wordsText}
+            onChange={(e) => setWordsText(e.target.value)}
+            disabled={isLoading}
+            rows={3}
+          />
+        </div>
 
         <button
           type="button"
@@ -129,22 +145,13 @@ export function ThemeForm({ onTaskStart, disabled }: ThemeFormProps) {
                 disabled={isLoading}
               />
             </div>
-            <Input
-              label="Word count"
-              type="number"
-              min="1"
-              max="100"
-              value={wordCount}
-              onChange={(e) => setWordCount(e.target.value)}
-              disabled={isLoading}
-            />
           </div>
         )}
 
-        {error && themePrompt.trim() && <p className={styles.error}>{error}</p>}
+        {error && <p className={styles.error}>{error}</p>}
 
         <Button type="submit" loading={mutation.isPending} disabled={isLoading}>
-          {selectedTheme ? 'Add More Words' : 'Generate Vocabulary'}
+          Translate & Add
         </Button>
       </form>
     </Card>

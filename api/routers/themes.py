@@ -93,7 +93,7 @@ def _create_theme_vocabulary(
         target_theme = related_theme["theme"]
         is_related = True
         related_theme_name = related_theme["theme"]
-        known_words = db.get_known_lemmas(theme=target_theme, db_path=settings.db_path)
+        known_words = db.get_known_words(theme=target_theme, db_path=settings.db_path)
     else:
         target_theme = theme_prompt
         known_words = []

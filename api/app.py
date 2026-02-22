@@ -9,6 +9,7 @@ from api.routers import (
     audio_router,
     sync_router,
     tasks_router,
+    manual_entry_router,
 )
 
 app = FastAPI(
@@ -33,6 +34,7 @@ app.include_router(themes_router, prefix=settings.api_prefix)
 app.include_router(audio_router, prefix=settings.api_prefix)
 app.include_router(sync_router, prefix=settings.api_prefix)
 app.include_router(tasks_router, prefix=settings.api_prefix)
+app.include_router(manual_entry_router, prefix=settings.api_prefix)
 
 
 @app.get("/health")

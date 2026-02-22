@@ -65,8 +65,8 @@ class TestInitDb:
         }
         assert columns == expected_columns
 
-    def test_unique_constraint_is_word_lemma_theme(self, temp_db):
-        """Test that the UNIQUE constraint is on (word, lemma, theme)."""
+    def test_unique_constraint_is_word_theme(self, temp_db):
+        """Test that the UNIQUE constraint is on (word, theme)."""
         db.init_db(temp_db)
 
         conn = sqlite3.connect(temp_db)
@@ -77,7 +77,7 @@ class TestInitDb:
         create_sql = cursor.fetchone()[0]
         conn.close()
 
-        assert "UNIQUE(word, lemma, theme)" in create_sql
+        assert "UNIQUE(word, theme)" in create_sql
 
 
 class TestAddWords:
@@ -372,16 +372,16 @@ class TestGetAllWords:
         assert len(retrieved[0]["examples"]) == 2
 
 
-class TestGetKnownLemmas:
-    """Tests for get_known_lemmas function."""
+class TestGetKnownWords:
+    """Tests for get_known_words function."""
 
     def test_returns_empty_for_empty_db(self, temp_db):
         """Test returns empty list for empty database."""
-        lemmas = db.get_known_lemmas(theme="test", db_path=temp_db)
-        assert lemmas == []
+        words = db.get_known_words(theme="test", db_path=temp_db)
+        assert words == []
 
-    def test_returns_lemmas_for_theme(self, temp_db):
-        """Test returns correct lemmas for a theme."""
+    def test_returns_words_for_theme(self, temp_db):
+        """Test returns correct word forms for a theme."""
         words = [
             {
                 "word": "quiero",
@@ -408,8 +408,8 @@ class TestGetKnownLemmas:
             db_path=temp_db,
         )
 
-        lemmas = db.get_known_lemmas(theme="el_pais", db_path=temp_db)
-        assert set(lemmas) == {"querer", "casa"}
+        known = db.get_known_words(theme="el_pais", db_path=temp_db)
+        assert set(known) == {"quiero", "casa"}
 
 
 class TestGetStats:
@@ -741,7 +741,7 @@ class TestMigration:
         db.migrate_themes_to_vocabulary(temp_db)
 
     def test_constraint_migration_from_unique_lemma(self, temp_db):
-        """Test that init_db migrates from UNIQUE(lemma) to UNIQUE(word, lemma, theme)."""
+        """Test that init_db migrates from UNIQUE(lemma) to UNIQUE(word, theme)."""
         # Create old-style table with UNIQUE(lemma)
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
@@ -779,7 +779,7 @@ class TestMigration:
         create_sql = cursor.fetchone()[0]
         conn.close()
 
-        assert "UNIQUE(word, lemma, theme)" in create_sql
+        assert "UNIQUE(word, theme)" in create_sql
 
         # Verify data was preserved
         words = db.get_all_words(temp_db)

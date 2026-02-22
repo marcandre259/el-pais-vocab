@@ -134,23 +134,6 @@
   background-color: var(--color-surface-hover);
 }
 
-.syncButton {
-  margin-top: 0.75rem;
-  padding: 0.5rem 1rem;
-  background-color: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.syncButton:hover {
-  background-color: var(--color-primary-hover);
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
