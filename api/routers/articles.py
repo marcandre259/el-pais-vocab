@@ -18,13 +18,20 @@ def _extract_article_vocabulary(
     target_lang: str,
     word_count: int,
     prompt: str,
+    progress_callback=None,
 ) -> dict:
     """Synchronous function to extract vocabulary from article."""
+    if progress_callback:
+        progress_callback("Fetching article...")
+
     # Fetch article text
     article_text = scraper.get_article_text(url, browser)
 
     # Get known words to exclude
     known_words = db.get_known_words("el_pais", settings.db_path)
+
+    if progress_callback:
+        progress_callback("Extracting and translating words...")
 
     # Extract vocabulary using LLM
     words = llm.select_and_translate(
@@ -43,6 +50,9 @@ def _extract_article_vocabulary(
             "words": [],
             "source_url": url,
         }
+
+    if progress_callback:
+        progress_callback("Saving to database...")
 
     # Add words to database
     new_count, updated_count = db.add_words(

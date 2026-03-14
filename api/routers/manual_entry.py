@@ -16,10 +16,14 @@ def _translate_manual_words(
     source_lang: str,
     target_lang: str,
     theme: str,
+    progress_callback=None,
 ) -> dict:
     """Synchronous function to translate and store manual words."""
     # Get existing words in this theme to avoid duplicates
     known_words = db.get_known_words(theme=theme, db_path=settings.db_path)
+
+    if progress_callback:
+        progress_callback(f"Translating {len(words)} words...")
 
     # Translate words via LLM
     translated = llm.translate_words(
@@ -28,6 +32,9 @@ def _translate_manual_words(
         target_lang=target_lang,
         theme_context=theme,
     )
+
+    if progress_callback:
+        progress_callback("Saving to database...")
 
     # Add words to vocabulary table
     new_count, updated_count = db.add_words(

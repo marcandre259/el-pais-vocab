@@ -76,10 +76,13 @@ class TaskManager:
         """Run a synchronous function in background thread pool."""
         self.update_task(task_id, status=TaskStatusEnum.IN_PROGRESS)
 
+        def progress_callback(msg: str) -> None:
+            self.update_task(task_id, progress=msg)
+
         loop = asyncio.get_event_loop()
         try:
             result = await loop.run_in_executor(
-                self._executor, lambda: func(*args, **kwargs)
+                self._executor, lambda: func(*args, progress_callback=progress_callback, **kwargs)
             )
             self.update_task(task_id, status=TaskStatusEnum.COMPLETED, result=result)
         except Exception as e:

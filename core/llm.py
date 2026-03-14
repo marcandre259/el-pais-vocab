@@ -214,6 +214,7 @@ def generate_themed_vocabulary(
     count: int,
     get_themes_func,
     search_words_func,
+    progress_callback=None,
 ) -> List[Dict]:
     """
     Generate vocabulary based on a theme using Claude with tool use.
@@ -330,6 +331,8 @@ First, use the list_themes tool to see if there are related themes you should ch
                         tool_input = block.input
 
                         if tool_name == "list_themes":
+                            if progress_callback:
+                                progress_callback("Looking up existing themes...")
                             themes = get_themes_func()
                             result = []
                             for t in themes:
@@ -340,6 +343,8 @@ First, use the list_themes tool to see if there are related themes you should ch
                                 "\n".join(result) if result else "No themes found."
                             )
                         elif tool_name == "lookup_theme_words":
+                            if progress_callback:
+                                progress_callback("Checking related vocabulary...")
                             theme = tool_input.get("theme")
                             search_term = tool_input.get("search_term")
                             try:
@@ -372,6 +377,8 @@ First, use the list_themes tool to see if there are related themes you should ch
                 continue
 
             # No more tool use, extract the final response
+            if progress_callback:
+                progress_callback("Generating words...")
             response_text = ""
             for block in response.content:
                 if hasattr(block, "text"):

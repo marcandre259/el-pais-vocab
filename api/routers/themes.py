@@ -78,8 +78,12 @@ def _create_theme_vocabulary(
     source_lang: str,
     target_lang: str,
     word_count: int,
+    progress_callback=None,
 ) -> dict:
     """Synchronous function to create themed vocabulary."""
+    if progress_callback:
+        progress_callback("Checking for related themes...")
+
     # Check for related existing theme
     existing_themes = db.get_themes(settings.db_path)
     related_theme = llm.detect_related_theme(
@@ -98,6 +102,9 @@ def _create_theme_vocabulary(
         target_theme = theme_prompt
         known_words = []
 
+    if progress_callback:
+        progress_callback("Generating vocabulary...")
+
     # Generate vocabulary using LLM with tool use
     words = llm.generate_themed_vocabulary(
         theme_prompt=theme_prompt,
@@ -109,7 +116,11 @@ def _create_theme_vocabulary(
         search_words_func=lambda theme, st=None: db.search_words(
             theme, st, settings.db_path
         ),
+        progress_callback=progress_callback,
     )
+
+    if progress_callback:
+        progress_callback("Saving to database...")
 
     # Add words to vocabulary table
     new_count, updated_count = db.add_words(
