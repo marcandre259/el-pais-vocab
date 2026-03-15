@@ -12,7 +12,7 @@ class ArticleExtractRequest(BaseModel):
     )
     source_lang: str = Field(default="Spanish", description="Source language")
     target_lang: str = Field(default="French", description="Target language")
-    word_count: int = Field(default=30, ge=1, le=100, description="Number of words to extract")
+    word_count: int = Field(default=30, ge=1, le=1000, description="Number of words to extract")
     prompt: str = Field(
         default="pick useful vocabulary words",
         description="Instructions for word selection",

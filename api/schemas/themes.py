@@ -29,7 +29,7 @@ class ThemeCreateRequest(BaseModel):
     theme_prompt: str = Field(..., min_length=1, description="Theme description")
     source_lang: str = Field(default="Dutch", description="Source language")
     target_lang: str = Field(default="English", description="Target language")
-    word_count: int = Field(default=20, ge=1, le=100, description="Number of words to generate")
+    word_count: int = Field(default=20, ge=1, le=1000, description="Number of words to generate")
 
 
 class ThemeCreateResult(BaseModel):

@@ -30,6 +30,7 @@ def _sync_to_anki(
     include_main: bool,
     include_themes: bool,
     theme_name: str | None,
+    progress_callback=None,
 ) -> dict:
     """Synchronous function to sync vocabulary to Anki."""
     # Check connection first

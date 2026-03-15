@@ -133,7 +133,7 @@ export function ThemeForm({ onTaskStart, disabled }: ThemeFormProps) {
               label="Word count"
               type="number"
               min="1"
-              max="100"
+              max="1000"
               value={wordCount}
               onChange={(e) => setWordCount(e.target.value)}
               disabled={isLoading}
